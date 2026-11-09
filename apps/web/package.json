@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "next typegen && tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
     "@askwell/shared": "workspace:*",
