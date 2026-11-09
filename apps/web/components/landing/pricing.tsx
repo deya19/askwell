@@ -2,7 +2,7 @@ import { APP_NAME } from "@askwell/shared";
 import { ButtonLink } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { cn } from "@/components/ui/cn";
-import { PLAN_LIMITS } from "./plan-limits.mock";
+import { PLAN_LIMITS } from "@askwell/shared";
 import { pricingRows } from "./pricing-rows";
 import { Reveal } from "./reveal";
 import { Section } from "./section";

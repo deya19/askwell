@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PLAN_LIMITS } from "./plan-limits.mock";
+import { PLAN_LIMITS } from "@askwell/shared";
 import { pricingRows } from "./pricing-rows";
 
 describe("pricingRows", () => {

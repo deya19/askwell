@@ -1,4 +1,4 @@
-import type { PlanLimits } from "./plan-limits.mock";
+import type { PlanLimits } from "@askwell/shared";
 
 export type PricingRow = { label: string; free: string; pro: string };
 
