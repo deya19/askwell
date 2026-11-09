@@ -12,6 +12,8 @@ cp .env.example .env
 pnpm dev
 ```
 
+Every PR gets a Vercel preview deployment; its URL is on the PR.
+
 ## Commands
 
 | Command | Does |
