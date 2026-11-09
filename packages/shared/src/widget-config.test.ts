@@ -11,10 +11,10 @@ const custom: WidgetConfig = {
 };
 
 describe("DEFAULT_WIDGET_CONFIG", () => {
-  test("is bottom-right, fade, with the badge shown", () => {
+  test("is bottom-right, fade, with the badge hidden (Pro's default)", () => {
     expect(DEFAULT_WIDGET_CONFIG.position).toBe("bottom-right");
     expect(DEFAULT_WIDGET_CONFIG.animation).toBe("fade");
-    expect(DEFAULT_WIDGET_CONFIG.showBadge).toBe(true);
+    expect(DEFAULT_WIDGET_CONFIG.showBadge).toBe(false);
   });
 
   test("passes its own schema", () => {
@@ -42,6 +42,18 @@ describe("widgetConfigSchema", () => {
 describe("applyPlanToWidgetConfig", () => {
   test("Free gets the defaults and the badge, whatever is saved", () => {
     expect(applyPlanToWidgetConfig("free", custom)).toEqual({ ...DEFAULT_WIDGET_CONFIG, showBadge: true });
+  });
+
+  test("Free shows the badge even with the defaults saved", () => {
+    expect(applyPlanToWidgetConfig("free", DEFAULT_WIDGET_CONFIG).showBadge).toBe(true);
+  });
+
+  test("an upgrade from the defaults hides the badge on Pro", () => {
+    expect(applyPlanToWidgetConfig("pro", DEFAULT_WIDGET_CONFIG)).toEqual({ ...DEFAULT_WIDGET_CONFIG, showBadge: false });
+  });
+
+  test("Pro can turn the badge back on", () => {
+    expect(applyPlanToWidgetConfig("pro", { ...custom, showBadge: true }).showBadge).toBe(true);
   });
 
   test("Pro gets the saved config", () => {

@@ -27,19 +27,22 @@ export const widgetConfigSchema = z.object({
 /** One project's widget settings (`widget_configs`, project.md §6.8). */
 export type WidgetConfig = z.infer<typeof widgetConfigSchema>;
 
-/** The config every new project gets, and what Free projects always show. */
+/**
+ * The config every new project gets. The badge starts hidden, as Pro has it (project.md §5);
+ * Free never uses this value, since `applyPlanToWidgetConfig` forces its badge on.
+ */
 export const DEFAULT_WIDGET_CONFIG: WidgetConfig = {
   buttonColor: "#0a0a0a",
   position: "bottom-right",
   label: "Ask a question",
   animation: "fade",
   headerText: "How can we help?",
-  showBadge: true,
+  showBadge: false,
 };
 
 /**
- * The config the widget actually shows for a plan: Free gets the defaults and the badge;
- * Pro gets the saved config (project.md §5, §8). Call it on the server with the plan read there.
+ * The config the widget actually shows for a plan. Free always shows the defaults, with the
+ * badge forced on (`PLAN_LIMITS.free.showBadge`). Pro gets the saved config, badge included (project.md §5, §8). Call it on the server with the plan read there.
  */
 export function applyPlanToWidgetConfig(plan: Plan, config: WidgetConfig): WidgetConfig {
   if (!PLAN_LIMITS[plan].customize) {
