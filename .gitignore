@@ -1,0 +1,16 @@
+# Dependencies
+node_modules
+
+# Build output
+.next
+dist
+next-env.d.ts
+*.tsbuildinfo
+
+# Vercel
+.vercel
+
+# Environment files
+.env
+.env.*
+!.env.example
