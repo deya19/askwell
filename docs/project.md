@@ -75,6 +75,7 @@ The whole product in one flow. When this works end to end, the product is done.
 
 |                                | Free         | Pro                  |
 | ------------------------------ | ------------ | -------------------- |
+| Price                          | $0           | $19 / month          |
 | Projects                       | 1            | 5                    |
 | Messages / month (per project) | 100          | 2,000                |
 | Knowledge sources (per project, files + pasted text) | 3 | 25 |
