@@ -27,4 +27,18 @@ describe("types.ts", () => {
     expect(typedTables).toEqual([...schema.keys()].sort());
     for (const [table, columns] of schema) expect(rowColumns(types, table), table).toEqual(columns.sort());
   }, 60_000);
+
+  it("has the same functions as the migrated schema", async () => {
+    const types = await readFile(fileURLToPath(new URL("../types.ts", import.meta.url)), "utf8");
+    const db = await createTestDatabase();
+    const result = await db.query<{ proname: string }>(
+      `select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'public' order by 1`,
+    );
+    await db.close();
+
+    const functions = types.match(/\n    Functions: \{\n([\s\S]*?)\n    \};/)?.[1] ?? "";
+    const typedFunctions = [...functions.matchAll(/^      (\w+): \{/gm)].map((m) => m[1]!).sort();
+    expect(typedFunctions).toEqual(result.rows.map((row) => row.proname));
+  }, 60_000);
 });
