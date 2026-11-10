@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PLAN_LIMITS } from "@askwell/shared";
-import { pricingRows } from "./pricing-rows";
+import { formatPrice, PLAN_PRICES_USD, pricingRows } from "./pricing-rows";
 
 describe("pricingRows", () => {
   it("matches the plan table in project.md §5", () => {
@@ -25,5 +25,17 @@ describe("pricingRows", () => {
     expect(rows[1]?.free).toBe("12,345");
     expect(rows[3]?.pro).toBe("Default");
     expect(rows[8]?.pro).toBe("Shown");
+  });
+});
+
+describe("plan prices", () => {
+  it("is $0 for Free and $19 for Pro (PO decision)", () => {
+    expect(PLAN_PRICES_USD).toEqual({ free: 0, pro: 19 });
+    expect(formatPrice(PLAN_PRICES_USD.free)).toBe("$0");
+    expect(formatPrice(PLAN_PRICES_USD.pro)).toBe("$19");
+  });
+
+  it("shows cents only when there are some", () => {
+    expect(formatPrice(9.5)).toBe("$9.50");
   });
 });

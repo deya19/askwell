@@ -3,7 +3,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { cn } from "@/components/ui/cn";
 import { PLAN_LIMITS } from "@askwell/shared";
-import { pricingRows } from "./pricing-rows";
+import { formatPrice, PLAN_PRICES_USD, pricingRows } from "./pricing-rows";
 import { Reveal } from "./reveal";
 import { Section } from "./section";
 
@@ -49,6 +49,12 @@ export function Pricing() {
                   </span>
                 ) : null}
               </div>
+              <p className="mt-4 flex items-baseline gap-1.5">
+                <span className="text-4xl font-semibold tracking-tight">
+                  {formatPrice(PLAN_PRICES_USD[plan.key])}
+                </span>
+                <span className="text-sm text-muted">/ month</span>
+              </p>
               <p className="mt-2 text-sm text-muted">{plan.tagline}</p>
 
               <dl className="mt-6 flex-1 divide-y divide-border text-sm">

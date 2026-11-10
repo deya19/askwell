@@ -2,6 +2,14 @@ import type { PlanLimits } from "@askwell/shared";
 
 export type PricingRow = { label: string; free: string; pro: string };
 
+/** Monthly price in US dollars per plan. Product-owner decision, 2026-11-10 (project.md §5). */
+export const PLAN_PRICES_USD = { free: 0, pro: 19 } as const;
+
+/** "$0", "$19", "$9.50". */
+export function formatPrice(usd: number): string {
+  return Number.isInteger(usd) ? `$${usd}` : `$${usd.toFixed(2)}`;
+}
+
 function formatCount(n: number): string {
   return n.toLocaleString("en-US");
 }
