@@ -1,22 +1,33 @@
-import { UserButton } from "@clerk/nextjs";
-import { auth } from "@clerk/nextjs/server";
-import { APP_NAME } from "@askwell/shared";
 import type { Metadata } from "next";
+import { PageHeader, ProjectsIcon, StatePanel } from "@/components/dashboard/states";
+import { Button } from "@/components/ui/button";
 
-export const metadata: Metadata = { title: "Dashboard" };
+export const metadata: Metadata = { title: "Projects" };
 
-/** Placeholder so sign-in, sign-up and sign-out can be tested. P1F-T07 replaces it. */
-export default async function DashboardPage() {
-  // The proxy redirects signed-out visits too; the page still checks for itself.
-  await auth.protect();
-
+/** Projects list. Creating and listing projects comes in Phase 2; for now it's the empty state. */
+export default function DashboardPage() {
   return (
-    <main className="mx-auto flex min-h-dvh max-w-3xl flex-col gap-6 px-4 py-12">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">{APP_NAME} dashboard</h1>
-        <UserButton />
-      </header>
-      <p className="text-muted">You&apos;re signed in. Projects come next.</p>
-    </main>
+    <>
+      <PageHeader
+        title="Projects"
+        description="Each project is one chat widget, with its own knowledge and settings."
+        actions={<NewProjectButton />}
+      />
+      <StatePanel icon={<ProjectsIcon />} title="No projects yet">
+        Create a project, add your product info, and paste one script tag on your site.
+      </StatePanel>
+    </>
+  );
+}
+
+function NewProjectButton() {
+  // Project creation ships in Phase 2.
+  return (
+    <Button disabled aria-disabled title="Coming soon" className="w-full sm:w-auto">
+      <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+        <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+      </svg>
+      New project
+    </Button>
   );
 }
