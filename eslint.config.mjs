@@ -3,7 +3,7 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import tseslint from "typescript-eslint";
 
 export default defineConfig([
-  globalIgnores(["**/node_modules/", "**/.next/", "**/dist/", "**/next-env.d.ts"]),
+  globalIgnores(["**/node_modules/", "**/.next/", "**/dist/", "**/next-env.d.ts", "apps/web/public/widget.js"]),
   tseslint.configs.recommended,
   {
     files: ["apps/web/**/*.{js,mjs,ts,tsx}"],
