@@ -49,7 +49,9 @@ export function DashboardNav() {
       <div
         id={menuId}
         hidden={!open}
-        className="absolute inset-x-0 top-full border-b border-border bg-glass-strong px-4 py-3 shadow-panel backdrop-blur-glass-strong sm:hidden"
+        // Near-opaque: the header's own backdrop-filter stops a nested blur from
+        // reaching the page, so a glass panel here would let the content show through.
+        className="absolute inset-x-0 top-full border-b border-border bg-bg-raised/95 px-4 py-3 shadow-panel sm:hidden"
       >
         <ul className="flex flex-col gap-1">
           {NAV_ITEMS.map((item) => (
