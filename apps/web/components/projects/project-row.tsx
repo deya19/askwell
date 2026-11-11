@@ -44,10 +44,10 @@ export function ProjectRow({ project }: { project: ProjectRowData }) {
             </h2>
             <p className="mt-1 text-sm text-muted">
               <span>Created {project.created}</span>
-              <span aria-hidden className="mx-2">
+              <span aria-hidden className="mx-2 hidden sm:inline">
                 ·
               </span>
-              <span className="inline-block">{project.usage}</span>
+              <span className="block sm:inline">{project.usage}</span>
             </p>
           </div>
           <div className="flex shrink-0 gap-2">
