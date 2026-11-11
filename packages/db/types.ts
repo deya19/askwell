@@ -247,7 +247,76 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      consume_message: { Args: { max_messages: number; project_id: string }; Returns: boolean };
+      create_project: {
+        Args: { max_projects: number; name: string; owner_id: string };
+        Returns: {
+          created_at: string;
+          id: string;
+          messages_used: number;
+          name: string;
+          owner_id: string;
+          period_start: string;
+          public_key: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "projects";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      match_chunks: {
+        Args: { match_count: number; project_id: string; query_embedding: string };
+        Returns: {
+          content: string;
+          id: string;
+          similarity: number;
+          source_id: string;
+        }[];
+      };
+      owner_activity: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          messages_used: number;
+          period_start: string;
+          project_id: string;
+        }[];
+      };
+      reserve_knowledge_source: {
+        Args: {
+          max_sources: number;
+          project_id: string;
+          storage_key?: string;
+          title: string;
+          type: string;
+        };
+        Returns: {
+          created_at: string;
+          id: string;
+          project_id: string;
+          status: string;
+          storage_key: string | null;
+          title: string;
+          type: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "knowledge_sources";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      save_chat_turn: {
+        Args: {
+          bot_reply: string;
+          conversation_id?: string;
+          project_id: string;
+          visitor_id: string;
+          visitor_message: string;
+        };
+        Returns: string;
+      };
     };
     Enums: {
       [_ in never]: never;
