@@ -11,3 +11,4 @@ export * from "./api/projects";
 export * from "./api/knowledge";
 export * from "./api/conversations";
 export * from "./api/system";
+export * from "./widget-messages";
