@@ -2,12 +2,14 @@ import { auth } from "@clerk/nextjs/server";
 import type { ReactNode } from "react";
 import { DashboardBackdrop } from "@/components/dashboard/backdrop";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { DashboardThemeRoot } from "@/components/dashboard/theme";
 import { AlertIcon, StatePanel } from "@/components/dashboard/states";
 import { buttonClasses } from "@/components/ui/button";
 import { ensureAccount } from "@/lib/accounts";
 
 /**
- * The light, glass dashboard shell (project.md §13).
+ * The glass dashboard shell (project.md §13), light or dark by the owner's
+ * choice. The theme is applied here, so every page under /dashboard gets it.
  *
  * Every dashboard page renders inside `<main>`. Project pages will add their own
  * nested layout under `app/dashboard/[projectId]/` with a project-level nav
@@ -19,13 +21,13 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const accountReady = await ensureAccountSafely();
 
   return (
-    <div className="relative isolate flex min-h-dvh flex-col overflow-x-clip">
+    <DashboardThemeRoot className="relative isolate flex min-h-dvh flex-col overflow-x-clip bg-bg text-fg">
       <DashboardBackdrop />
       <DashboardHeader />
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6 sm:py-12">
         {accountReady ? children : <AccountError />}
       </main>
-    </div>
+    </DashboardThemeRoot>
   );
 }
 

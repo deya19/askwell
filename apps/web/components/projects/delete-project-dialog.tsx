@@ -55,7 +55,7 @@ export function DeleteProjectDialog({
       aria-labelledby={titleId}
       onClose={onClose}
       onCancel={(e) => pending && e.preventDefault()}
-      className="m-auto w-[calc(100%-2rem)] max-w-md rounded-lg border border-border bg-bg-raised p-0 text-fg shadow-panel backdrop:bg-ink-950/30 backdrop:backdrop-blur-sm"
+      className="m-auto w-[calc(100%-2rem)] max-w-md rounded-lg border border-border bg-bg-raised p-0 text-fg shadow-panel backdrop:bg-ink-1000/30 dark:backdrop:bg-ink-1000/60 backdrop:backdrop-blur-sm"
     >
       <form onSubmit={submit} className="p-5 sm:p-6">
         <h2 id={titleId} className="text-lg font-semibold tracking-tight">

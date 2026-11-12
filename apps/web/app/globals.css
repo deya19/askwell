@@ -6,9 +6,11 @@
  * Two layers:
  * 1. Fixed tokens in `@theme`: the neutral scale, radius, shadows, blur, motion.
  * 2. Semantic color tokens (`bg`, `fg`, `muted`, `border`, `glass`...) that switch
- *    between the light theme (default: dashboard) and the dark theme
- *    (`data-theme="dark"`: landing page). Use these in components, e.g.
- *    `bg-bg text-fg border-border bg-glass`, so a component works on both.
+ *    between the light theme (default) and the dark theme (`data-theme="dark"`:
+ *    the landing page always, the dashboard by the owner's choice, see
+ *    lib/theme). Use these in components, e.g. `bg-bg text-fg border-border
+ *    bg-glass`, so a component works on both. For the odd one-off value, use
+ *    the `dark:` variant.
  */
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
@@ -168,7 +170,7 @@
   }
 }
 
-/* A dark page paints the whole body dark, so overscroll doesn't flash light. */
+/* A dark page (landing, or the dashboard in dark) paints the whole body dark, so overscroll doesn't flash light. */
 body:has(> [data-theme="dark"]) {
   background-color: var(--color-ink-1000);
 }
