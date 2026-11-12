@@ -4,8 +4,9 @@ import Link from "next/link";
 import { LogoMark } from "@/components/landing/site-header";
 import { DashboardNav } from "./dashboard-nav";
 import { DASHBOARD_PATH } from "./nav-items";
+import { ThemeToggle } from "./theme-toggle";
 
-/** The sticky glass top bar: app name, account navigation, and the Clerk user menu. */
+/** The sticky glass top bar: app name, account navigation, theme switch, and the Clerk user menu. */
 export function DashboardHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-bg/70 backdrop-blur-glass-strong">
@@ -14,8 +15,9 @@ export function DashboardHeader() {
           <LogoMark />
           {APP_NAME}
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <DashboardNav />
+          <ThemeToggle />
           {/* Fixed size so the header doesn't jump while Clerk loads. */}
           <div className="grid size-8 place-items-center">
             <UserButton />
