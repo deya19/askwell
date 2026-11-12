@@ -1,10 +1,11 @@
+import { APP_NAME } from "@askwell/shared";
 import type { Metadata } from "next";
 import { ChatPanel } from "@/components/embed/chat-panel";
 import { ChatUnavailable } from "@/components/embed/chat-unavailable";
 import { loadEmbed } from "./load-embed";
 
 export const metadata: Metadata = {
-  title: "Chat",
+  title: `Chat · ${APP_NAME}`,
   robots: { index: false, follow: false },
 };
 

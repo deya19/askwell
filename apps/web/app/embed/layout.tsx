@@ -1,11 +1,6 @@
-import { APP_NAME } from "@askwell/shared";
-import type { Metadata, Viewport } from "next";
+import type { Viewport } from "next";
 import type { ReactNode } from "react";
 import "../globals.css";
-
-export const metadata: Metadata = {
-  title: { default: APP_NAME, template: `%s · ${APP_NAME}` },
-};
 
 export const viewport: Viewport = {
   width: "device-width",
