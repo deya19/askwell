@@ -8,7 +8,7 @@ import {
   SIGN_IN_PATH,
   SIGN_UP_PATH,
 } from "@/lib/auth/routes";
-import "./globals.css";
+import "../globals.css";
 
 const description = `Add your product info, paste one script tag, and ${APP_NAME} answers visitor questions on your website.`;
 
@@ -25,7 +25,13 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+/**
+ * Root layout for the site: landing, sign-in/up and the dashboard. It loads Clerk.
+ * /embed has its own root layout (app/embed/layout.tsx) without Clerk, so the
+ * widget panel on customers' sites never downloads clerk-js. Moving between the
+ * two root layouts is a full page load, which never happens in practice.
+ */
+export default function SiteLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>

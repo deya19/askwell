@@ -12,7 +12,7 @@ import { ensureAccount } from "@/lib/accounts";
  * choice. The theme is applied here, so every page under /dashboard gets it.
  *
  * Every dashboard page renders inside `<main>`. Project pages will add their own
- * nested layout under `app/dashboard/[projectId]/` with a project-level nav
+ * nested layout under `app/(site)/dashboard/[projectId]/` with a project-level nav
  * (knowledge, conversations, customize, install) above their content.
  */
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
