@@ -1,5 +1,6 @@
 import { DEFAULT_WIDGET_CONFIG } from "@askwell/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ProtectResult } from "../../../../lib/arcjet/decision";
 
 vi.mock("server-only", () => ({}));
 
@@ -29,6 +30,9 @@ const query = {
 const from = vi.fn(() => query);
 const createServiceClient = vi.fn(() => ({ from }));
 vi.mock("../../../../lib/supabase/service", () => ({ createServiceClient }));
+
+const protectWidgetConfig = vi.fn<(request: Request) => Promise<ProtectResult>>(async () => ({ allowed: true }));
+vi.mock("../../../../lib/arcjet/config", () => ({ protectWidgetConfig }));
 
 const { GET, OPTIONS } = await import("./route");
 
@@ -133,6 +137,35 @@ describe("GET /api/widget/config", () => {
     expect(JSON.stringify(await res.json())).not.toContain("secret");
     expectCors(res);
     expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("checks Arcjet once per request", async () => {
+    await get(`?key=${KEY}`);
+
+    expect(protectWidgetConfig).toHaveBeenCalledOnce();
+  });
+
+  it("returns 429 rate_limited with CORS and no caching when Arcjet rate limits, without a query", async () => {
+    protectWidgetConfig.mockResolvedValueOnce({ allowed: false, reason: "rate_limit" });
+
+    const res = await get(`?key=${KEY}`);
+
+    expect(res.status).toBe(429);
+    await expect(res.json()).resolves.toMatchObject({ error: { code: "rate_limited" } });
+    expectCors(res);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(createServiceClient).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 forbidden with CORS when Arcjet blocks for another reason", async () => {
+    protectWidgetConfig.mockResolvedValueOnce({ allowed: false, reason: "shield" });
+
+    const res = await get(`?key=${KEY}`);
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toMatchObject({ error: { code: "forbidden" } });
+    expectCors(res);
+    expect(createServiceClient).not.toHaveBeenCalled();
   });
 
   it("returns 500 for an unknown plan instead of guessing one", async () => {
