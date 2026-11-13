@@ -62,7 +62,7 @@ export function KnowledgeView({
         </StatePanel>
       ) : (
         <GlassPanel className="mt-6 overflow-hidden">
-          <ul className="divide-y divide-border">
+          <ul aria-label="Knowledge sources" className="divide-y divide-border">
             {sources.map((source) => (
               <SourceRow key={source.id} source={source} />
             ))}
