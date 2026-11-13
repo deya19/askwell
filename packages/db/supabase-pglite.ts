@@ -3,8 +3,9 @@
  *
  * It stubs what our migrations and policies rely on: the `anon`, `authenticated` and
  * `service_role` roles, the `auth` and `extensions` schemas, `auth.jwt()` (read from the
- * `request.jwt.claims` setting, as PostgREST sets it), pgvector, and Supabase's default
- * grants on new objects in `public` (so tests prove our migrations revoke them).
+ * `request.jwt.claims` setting, as PostgREST sets it), pgvector, Supabase's default
+ * grants on new objects in `public` (so tests prove our migrations revoke them), and the
+ * Storage tables our migrations touch (`storage.buckets`, `storage.objects` with RLS on).
  *
  * Never point tests at a local Supabase stack or the shared dev project (project.md §4).
  */
@@ -37,6 +38,32 @@ const SUPABASE_STUB_SQL = `
   alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
   alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
   alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
+
+  -- A cut-down Supabase Storage schema: the bucket columns our migrations set, and
+  -- storage.objects with RLS on and the API roles granted, as on a real project.
+  create schema storage;
+  grant usage on schema storage to anon, authenticated, service_role;
+  create table storage.buckets (
+    id text primary key,
+    name text not null unique,
+    owner uuid,
+    public boolean default false,
+    file_size_limit bigint,
+    allowed_mime_types text[],
+    created_at timestamptz default now(),
+    updated_at timestamptz default now()
+  );
+  create table storage.objects (
+    id uuid primary key default gen_random_uuid(),
+    bucket_id text references storage.buckets (id),
+    name text,
+    owner_id text,
+    metadata jsonb,
+    created_at timestamptz default now(),
+    updated_at timestamptz default now()
+  );
+  alter table storage.objects enable row level security;
+  grant all on storage.buckets, storage.objects to anon, authenticated, service_role;
 `;
 
 /** A fresh pglite with Supabase's roles, schemas and `auth.jwt()` stubbed. No migrations applied. */
