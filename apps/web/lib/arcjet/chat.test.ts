@@ -12,9 +12,9 @@ const arcjet = vi.fn(() => client);
 const rule = (name: string) => vi.fn((options: unknown) => [{ name, options }]);
 const shield = rule("shield");
 const detectBot = rule("detectBot");
-const slidingWindow = rule("slidingWindow");
+const fixedWindow = rule("fixedWindow");
 const detectPromptInjection = rule("detectPromptInjection");
-vi.mock("@arcjet/next", () => ({ default: arcjet, shield, detectBot, slidingWindow, detectPromptInjection }));
+vi.mock("@arcjet/next", () => ({ default: arcjet, shield, detectBot, fixedWindow, detectPromptInjection }));
 
 const savedKey = process.env.ARCJET_KEY;
 process.env.ARCJET_KEY = "ajkey_test";
@@ -35,19 +35,20 @@ beforeEach(() => {
 
 describe("protectChat", () => {
   // Runs first: the client is built once, on the first check.
-  it("uses Shield, bots, a per key + IP sliding window and prompt injection, all LIVE", async () => {
+  it("uses Shield, bots, a per key + IP fixed window and prompt injection, all LIVE", async () => {
     protect.mockResolvedValue(fakeDecision("ALLOW"));
     await check();
 
     expect(arcjet).toHaveBeenCalledOnce();
     expect(arcjet).toHaveBeenCalledWith({ key: "ajkey_test", rules: [[{ name: "shield", options: { mode: "LIVE" } }]] });
     expect(detectBot).toHaveBeenCalledWith({ mode: "LIVE", allow: [] });
-    expect(slidingWindow).toHaveBeenCalledWith({
+    expect(fixedWindow).toHaveBeenCalledWith({
       mode: "LIVE",
       characteristics: ["publicKey", "ip.src"],
-      interval: 60,
+      window: 60,
       max: CHAT_RATE_LIMIT_PER_MINUTE,
     });
+    expect(CHAT_RATE_LIMIT_PER_MINUTE).toBe(20);
     expect(detectPromptInjection).toHaveBeenCalledWith({ mode: "LIVE" });
     expect(withRule).toHaveBeenCalledTimes(3);
   });

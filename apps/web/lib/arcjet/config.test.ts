@@ -5,11 +5,11 @@ vi.mock("server-only", () => ({}));
 
 const protect = vi.fn();
 const client = { protect, withRule: vi.fn(() => client) };
-const slidingWindow = vi.fn((options: unknown) => [{ name: "slidingWindow", options }]);
+const fixedWindow = vi.fn((options: unknown) => [{ name: "fixedWindow", options }]);
 vi.mock("@arcjet/next", () => ({
   default: vi.fn(() => client),
   shield: vi.fn(() => []),
-  slidingWindow,
+  fixedWindow,
 }));
 
 const savedKey = process.env.ARCJET_KEY;
@@ -33,10 +33,10 @@ describe("protectWidgetConfig", () => {
     protect.mockResolvedValue(fakeDecision("ALLOW"));
     await protectWidgetConfig(request);
 
-    expect(slidingWindow).toHaveBeenCalledWith({
+    expect(fixedWindow).toHaveBeenCalledWith({
       mode: "LIVE",
       characteristics: ["ip.src"],
-      interval: 60,
+      window: 60,
       max: CONFIG_RATE_LIMIT_PER_MINUTE,
     });
     expect(CONFIG_RATE_LIMIT_PER_MINUTE).toBe(60);
