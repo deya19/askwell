@@ -1,4 +1,5 @@
 import { widgetConfigQuerySchema, type WidgetConfigResponse } from "@askwell/shared";
+import { protectWidgetConfig } from "../../../../lib/arcjet/config";
 import { getWidgetConfigByKey } from "../../../../lib/widget/config";
 import {
   widgetErrorResponse,
@@ -15,7 +16,13 @@ const CACHE_CONTROL = "public, max-age=60";
  * Public and called from any origin. Returns the config only, nothing else about the project.
  */
 export async function GET(request: Request): Promise<Response> {
-  // TODO(Phase 3): rate limit with Arcjet (ARCJET_KEY).
+  const protection = await protectWidgetConfig(request);
+  if (!protection.allowed) {
+    return protection.reason === "rate_limit"
+      ? widgetErrorResponse("rate_limited", "Too many requests. Try again in a minute.")
+      : widgetErrorResponse("forbidden", "Request blocked.");
+  }
+
   const params = new URL(request.url).searchParams;
   const parsed = widgetConfigQuerySchema.safeParse({ key: params.get("key") ?? undefined });
   if (!parsed.success) return widgetErrorResponse("invalid_request", "Send a valid public key as ?key=pk_...");
