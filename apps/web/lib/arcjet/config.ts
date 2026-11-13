@@ -1,5 +1,5 @@
 import "server-only";
-import { slidingWindow } from "@arcjet/next";
+import { fixedWindow } from "@arcjet/next";
 import { getArcjet } from "./client";
 import { failOpen, type ProtectResult } from "./decision";
 
@@ -10,7 +10,7 @@ type ConfigArcjet = ReturnType<typeof createConfigArcjet>;
 
 function createConfigArcjet() {
   return getArcjet().withRule(
-    slidingWindow({ mode: "LIVE", characteristics: ["ip.src"], interval: 60, max: CONFIG_RATE_LIMIT_PER_MINUTE }),
+    fixedWindow({ mode: "LIVE", characteristics: ["ip.src"], window: 60, max: CONFIG_RATE_LIMIT_PER_MINUTE }),
   );
 }
 

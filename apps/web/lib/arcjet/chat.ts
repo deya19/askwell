@@ -1,6 +1,6 @@
 import "server-only";
 import { CHAT_RATE_LIMIT_PER_MINUTE } from "@askwell/shared";
-import { detectBot, detectPromptInjection, slidingWindow } from "@arcjet/next";
+import { detectBot, detectPromptInjection, fixedWindow } from "@arcjet/next";
 import { getArcjet } from "./client";
 import { failOpen, type ProtectResult } from "./decision";
 
@@ -10,10 +10,10 @@ function createChatArcjet() {
   return getArcjet()
     .withRule(detectBot({ mode: "LIVE", allow: [] }))
     .withRule(
-      slidingWindow({
+      fixedWindow({
         mode: "LIVE",
         characteristics: ["publicKey", "ip.src"],
-        interval: 60,
+        window: 60,
         max: CHAT_RATE_LIMIT_PER_MINUTE,
       }),
     )
