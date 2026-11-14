@@ -4,7 +4,7 @@ import { APP_NAME, MAX_CHAT_MESSAGE_LENGTH } from "@askwell/shared";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { getVisitorId } from "@/lib/visitor-id";
 import { cn } from "@/components/ui/cn";
-import { requestReply } from "./mock-reply";
+import { CHAT_FAILURE_TEXT, sendChatMessage } from "./chat-client";
 import { PanelHeader, PanelShell } from "./panel-shell";
 import { useHostBridge } from "./use-host-bridge";
 
@@ -50,6 +50,12 @@ export function ChatPanel({ publicKey, host, headerText, showBadge }: ChatPanelP
   const add = (role: ChatItem["role"], text: string) =>
     setItems((current) => [...current, { id: nextId.current++, role, text }]);
 
+  /** Shows the error and puts the message back in the input (unless they've typed a new one), so they can resend it. */
+  function failed(message: string, text: string) {
+    add("error", text);
+    setDraft((current) => (current.trim() === "" ? message : current));
+  }
+
   async function send(event?: FormEvent) {
     event?.preventDefault();
     const message = draft.trim();
@@ -61,15 +67,20 @@ export function ChatPanel({ publicKey, host, headerText, showBadge }: ChatPanelP
     const controller = new AbortController();
     pending.current = controller;
     try {
-      const { reply } = await requestReply(
+      const result = await sendChatMessage(
         { key: publicKey, visitorId: visitorId.current ?? getVisitorId(), message },
         { signal: controller.signal },
       );
-      add("bot", reply);
-      bridge.replyArrived();
+      if (controller.signal.aborted) return;
+      if (result.ok) {
+        add("bot", result.reply);
+        bridge.replyArrived();
+      } else {
+        failed(message, CHAT_FAILURE_TEXT[result.failure]);
+      }
     } catch {
       if (controller.signal.aborted) return;
-      add("error", "Something went wrong. Try again.");
+      failed(message, CHAT_FAILURE_TEXT.failed);
     } finally {
       if (!controller.signal.aborted) setWaiting(false);
     }
