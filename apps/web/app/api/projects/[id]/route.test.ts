@@ -44,7 +44,21 @@ const table = {
 };
 const from = vi.fn(() => table);
 const createOwnerClient = vi.fn(async () => ({ from }));
-const createServiceClient = vi.fn();
+// The service client's Storage: one listing page of the project's files, then remove.
+let storedFiles: { name: string; id: string | null }[] = [];
+let listError: { message: string } | null = null;
+type StorageError = { message: string } | null;
+const bucket = {
+  list: vi.fn<(path: string, options: unknown) => Promise<{ data: typeof storedFiles | null; error: StorageError }>>(
+    async () => ({ data: listError ? null : storedFiles, error: listError }),
+  ),
+  remove: vi.fn<(paths: string[]) => Promise<{ data: unknown[]; error: StorageError }>>(async () => ({
+    data: [],
+    error: null,
+  })),
+};
+const storageFrom = vi.fn<(bucketName: string) => typeof bucket>(() => bucket);
+const createServiceClient = vi.fn(() => ({ storage: { from: storageFrom } }));
 vi.mock("../../../../lib/supabase/owner", () => ({ createOwnerClient }));
 vi.mock("../../../../lib/supabase/service", () => ({ createServiceClient }));
 
@@ -70,6 +84,8 @@ beforeEach(() => {
   signedIn = true;
   updateResult = { data: row, error: null };
   deleteResult = { data: [{ id: ID }], error: null };
+  storedFiles = [{ name: "a.pdf", id: "obj-1" }, { name: "b.txt", id: "obj-2" }];
+  listError = null;
 });
 
 describe("PATCH /api/projects/:id", () => {
@@ -155,16 +171,49 @@ describe("DELETE /api/projects/:id", () => {
     await expect(res.json()).resolves.toEqual({ ok: true });
     expect(table.delete).toHaveBeenCalledOnce();
     expect(deleteQuery.eq).toHaveBeenCalledWith("id", ID);
-    expect(createServiceClient).not.toHaveBeenCalled();
   });
 
-  it("returns 404 for a project the caller can't see", async () => {
+  it("then removes the project's files, and only under its own prefix", async () => {
+    const res = await DELETE(del(), context(ID));
+
+    expect(res.status).toBe(200);
+    expect(storageFrom).toHaveBeenCalledWith("knowledge");
+    expect(bucket.list).toHaveBeenCalledWith(ID, expect.anything());
+    expect(bucket.remove).toHaveBeenCalledExactlyOnceWith([`${ID}/a.pdf`, `${ID}/b.txt`]);
+    // Rows first, then files.
+    expect(deleteQuery.select.mock.invocationCallOrder[0]).toBeLessThan(bucket.list.mock.invocationCallOrder[0]!);
+  });
+
+  it("still returns ok, and logs, when removing the files fails", async () => {
+    listError = { message: "storage down" };
+
+    const res = await DELETE(del(), context(ID));
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ ok: true });
+    expect(bucket.remove).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining(ID), expect.any(Error));
+  });
+
+  it("still returns ok when the remove call itself fails", async () => {
+    bucket.remove.mockResolvedValueOnce({ data: [], error: { message: "nope" } });
+
+    const res = await DELETE(del(), context(ID));
+
+    expect(res.status).toBe(200);
+    expect(console.error).toHaveBeenCalledOnce();
+  });
+
+  it("returns 404 for a project the caller can't see, and touches no files", async () => {
     deleteResult = { data: [], error: null };
 
     const res = await DELETE(del(), context(ID));
 
     expect(res.status).toBe(404);
     await expect(res.json()).resolves.toMatchObject({ error: { code: "not_found" } });
+    expect(createServiceClient).not.toHaveBeenCalled();
+    expect(bucket.list).not.toHaveBeenCalled();
+    expect(bucket.remove).not.toHaveBeenCalled();
   });
 
   it("returns 404 for an id that isn't a UUID, without a query", async () => {
@@ -190,5 +239,6 @@ describe("DELETE /api/projects/:id", () => {
 
     expect(res.status).toBe(500);
     expect(JSON.stringify(await res.json())).not.toContain("secret");
+    expect(bucket.remove).not.toHaveBeenCalled();
   });
 });

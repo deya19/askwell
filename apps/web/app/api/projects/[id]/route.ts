@@ -1,8 +1,10 @@
 import { idParamsSchema, updateProjectRequestSchema, type OkResponse, type ProjectResponse } from "@askwell/shared";
 import { requireOwner } from "../../../../lib/auth/require-owner";
+import { removeProjectFiles } from "../../../../lib/knowledge/project-files";
 import { errorResponse, internalErrorResponse, invalidBodyMessage, readJson } from "../../../../lib/projects/http";
 import { toProject } from "../../../../lib/projects/project";
 import { createOwnerClient } from "../../../../lib/supabase/owner";
+import { createServiceClient } from "../../../../lib/supabase/service";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -48,7 +50,14 @@ export async function PATCH(request: Request, context: Context): Promise<Respons
   }
 }
 
-/** `DELETE /api/projects/:id`: deletes the project and, by cascade, everything in it. */
+/**
+ * `DELETE /api/projects/:id`: deletes the project and, by cascade, every row in it, then
+ * its files in the knowledge bucket.
+ *
+ * The delete runs through the owner client, so RLS only deletes the caller's own project;
+ * a returned row is the ownership check. Only then does the service client touch Storage
+ * (project.md §9). Rows first: a leftover file is harmless, a half-deleted project isn't.
+ */
 export async function DELETE(_request: Request, context: Context): Promise<Response> {
   const owner = await requireOwner();
   if (!owner.ok) return owner.response;
@@ -62,9 +71,20 @@ export async function DELETE(_request: Request, context: Context): Promise<Respo
     if (error) throw new Error(`Could not delete project: ${error.message}`);
     if (data.length === 0) return notFound();
 
+    await removeFilesAfterDelete(id);
+
     const body: OkResponse = { ok: true };
     return Response.json(body);
   } catch (cause) {
     return internalErrorResponse(cause);
+  }
+}
+
+/** Removes the deleted project's files. A failure is logged, never shown: the project is gone. */
+async function removeFilesAfterDelete(projectId: string): Promise<void> {
+  try {
+    await removeProjectFiles(createServiceClient(), projectId);
+  } catch (cause) {
+    console.error(`Could not remove files of deleted project ${projectId}:`, cause);
   }
 }
