@@ -51,7 +51,7 @@ export function ProjectRow({ project }: { project: ProjectRowData }) {
               <span className="block sm:inline">{project.usage}</span>
             </p>
           </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
+          <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex">
             <ButtonLink href={installPath(project.id)} size="sm" className="flex-1 sm:flex-none">
               Install
             </ButtonLink>
