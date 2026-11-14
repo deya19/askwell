@@ -3,6 +3,7 @@
 import { MAX_PROJECT_NAME_LENGTH } from "@askwell/shared";
 import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent } from "react";
+import { knowledgePath } from "@/components/knowledge/copy";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { renameProject } from "./api";
 import { installPath } from "./copy";
@@ -50,9 +51,12 @@ export function ProjectRow({ project }: { project: ProjectRowData }) {
               <span className="block sm:inline">{project.usage}</span>
             </p>
           </div>
-          <div className="flex shrink-0 gap-2">
+          <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex">
             <ButtonLink href={installPath(project.id)} size="sm" className="flex-1 sm:flex-none">
               Install
+            </ButtonLink>
+            <ButtonLink href={knowledgePath(project.id)} variant="secondary" size="sm" className="flex-1 sm:flex-none">
+              Knowledge
             </ButtonLink>
             <Button variant="secondary" size="sm" className="flex-1 sm:flex-none" onClick={() => setMode("rename")}>
               Rename
