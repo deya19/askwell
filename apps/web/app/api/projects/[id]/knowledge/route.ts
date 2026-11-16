@@ -1,5 +1,6 @@
 import { createTextSourceRequestSchema, type KnowledgeSourceResponse } from "@askwell/shared";
 import { after } from "next/server";
+import { captureServerEvent } from "../../../../../lib/analytics/server";
 import { processKnowledgeSource } from "../../../../../lib/knowledge/process";
 import { requireOwnedProject, reserveSource, type IdContext } from "../../../../../lib/knowledge/routes";
 import { toKnowledgeSource } from "../../../../../lib/knowledge/source";
@@ -12,6 +13,7 @@ export const maxDuration = 300;
 /**
  * `POST /api/projects/:id/knowledge`: adds pasted text as a source, within the plan's
  * source limit, and processes it after responding. Responds 201 with the `processing` source.
+ * Sends `knowledge_added` (project.md §6.11) with the type only: no title or content.
  */
 export async function POST(request: Request, context: IdContext): Promise<Response> {
   try {
@@ -34,6 +36,12 @@ export async function POST(request: Request, context: IdContext): Promise<Respon
     if (!reserved.ok) return reserved.response;
 
     const source = reserved.row;
+    await captureServerEvent({
+      event: "knowledge_added",
+      distinctId: owned.userId,
+      properties: { project_id: source.project_id, type: "text" },
+    });
+
     after(() =>
       processKnowledgeSource(
         service,

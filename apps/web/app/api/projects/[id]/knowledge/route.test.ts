@@ -1,8 +1,16 @@
 import { PLAN_LIMITS, knowledgeSourceResponseSchema } from "@askwell/shared";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as setup from "../../../../../lib/knowledge/route-test-setup";
 
 vi.mock("server-only", () => ({}));
+
+// PostHog under the real capture helper: events go to `captureImmediate`.
+const { captureImmediate } = vi.hoisted(() => ({ captureImmediate: vi.fn() }));
+vi.mock("posthog-node", () => ({
+  PostHog: vi.fn(function () {
+    return { captureImmediate, on: vi.fn() };
+  }),
+}));
 vi.mock("next/server", async () => (await import("../../../../../lib/knowledge/route-test-setup")).mocks.nextServer());
 vi.mock("../../../../../lib/auth/require-owner", async () =>
   (await import("../../../../../lib/knowledge/route-test-setup")).mocks.requireOwner(),
@@ -21,12 +29,29 @@ vi.mock("../../../../../lib/knowledge/process", async () =>
 );
 
 const { POST, maxDuration } = await import("./route");
+const { resetAnalyticsClientForTests } = await import("../../../../../lib/analytics/server");
+
+/** PostHog configured, events accepted. Call after `setup.resetState()`. */
+function resetAnalytics(): void {
+  resetAnalyticsClientForTests();
+  vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_test");
+  vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://us.i.posthog.com");
+  captureImmediate.mockResolvedValue(undefined);
+}
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 const { PROJECT_ID, OTHER_PROJECT_ID, SOURCE_ID, service, state } = setup;
 
 const URL = `http://localhost/api/projects/${PROJECT_ID}/knowledge`;
 const body = { title: "  Shipping FAQ ", content: "We ship worldwide.\n\nReturns take 30 days." };
 
-beforeEach(setup.resetState);
+beforeEach(() => {
+  setup.resetState();
+  resetAnalytics();
+});
 
 describe("POST /api/projects/:id/knowledge", () => {
   it("reserves a text source with the plan's limit, responds 201, then processes it", async () => {
@@ -109,5 +134,41 @@ describe("POST /api/projects/:id/knowledge", () => {
 
   it("allows enough time to process after responding", () => {
     expect(maxDuration).toBeGreaterThanOrEqual(300);
+  });
+});
+
+describe("POST /api/projects/:id/knowledge: knowledge_added", () => {
+  it("is sent once with the owner's user ID, the project ID and type text: no title or content", async () => {
+    const res = await POST(setup.jsonPost(URL, body), setup.ctx(PROJECT_ID));
+
+    expect(res.status).toBe(201);
+    expect(captureImmediate).toHaveBeenCalledTimes(1);
+    expect(captureImmediate).toHaveBeenCalledWith({
+      event: "knowledge_added",
+      distinctId: setup.USER_ID,
+      properties: { project_id: PROJECT_ID, type: "text" },
+    });
+    const sent = JSON.stringify(captureImmediate.mock.calls);
+    expect(sent).not.toContain("Shipping FAQ");
+    expect(sent).not.toContain("We ship worldwide");
+  });
+
+  it("isn't sent when the source isn't added", async () => {
+    service.rpcResult.current = { data: null, error: { code: "AWL02", message: "source_limit_reached" } };
+    await POST(setup.jsonPost(URL, body), setup.ctx(PROJECT_ID));
+    await POST(setup.jsonPost(URL, {}), setup.ctx(PROJECT_ID));
+    await POST(setup.jsonPost(URL, body), setup.ctx(OTHER_PROJECT_ID));
+
+    expect(captureImmediate).not.toHaveBeenCalled();
+  });
+
+  it("a PostHog failure doesn't fail the route or the processing", async () => {
+    captureImmediate.mockRejectedValue(new Error("posthog down"));
+
+    const res = await POST(setup.jsonPost(URL, body), setup.ctx(PROJECT_ID));
+
+    expect(res.status).toBe(201);
+    await setup.runAfter();
+    expect(setup.processKnowledgeSource).toHaveBeenCalledTimes(1);
   });
 });

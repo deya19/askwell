@@ -1,6 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+
+// PostHog under the real capture helper: events go to `captureImmediate`.
+const { captureImmediate } = vi.hoisted(() => ({ captureImmediate: vi.fn() }));
+vi.mock("posthog-node", () => ({
+  PostHog: vi.fn(function () {
+    return { captureImmediate, on: vi.fn() };
+  }),
+}));
 
 let userId: string | null = "user_new";
 vi.mock("@clerk/nextjs/server", () => ({
@@ -33,6 +41,7 @@ const createServiceClient = vi.fn(() => ({ from }));
 vi.mock("./supabase/service", () => ({ createServiceClient }));
 
 const { ensureAccount } = await import("./accounts");
+const { resetAnalyticsClientForTests } = await import("./analytics/server");
 
 describe("ensureAccount", () => {
   beforeEach(() => {
@@ -40,6 +49,15 @@ describe("ensureAccount", () => {
     table.clear();
     userId = "user_new";
     failWith = null;
+    resetAnalyticsClientForTests();
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_test");
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://us.i.posthog.com");
+    captureImmediate.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
   });
 
   it("inserts a free account for the signed-in user", async () => {
@@ -74,5 +92,35 @@ describe("ensureAccount", () => {
   it("throws on a database error", async () => {
     failWith = "boom";
     await expect(ensureAccount()).rejects.toThrow("Could not create account: boom");
+  });
+
+  describe("signed_up", () => {
+    it("is sent once, when the account is created, with the Clerk user ID and no properties", async () => {
+      await ensureAccount();
+      await ensureAccount();
+
+      expect(captureImmediate).toHaveBeenCalledTimes(1);
+      expect(captureImmediate).toHaveBeenCalledWith({ event: "signed_up", distinctId: "user_new" });
+    });
+
+    it("isn't sent for an existing account", async () => {
+      table.set("user_new", { clerk_user_id: "user_new", plan: "free" });
+      await ensureAccount();
+      expect(captureImmediate).not.toHaveBeenCalled();
+    });
+
+    it("isn't sent when the insert fails", async () => {
+      failWith = "boom";
+      await expect(ensureAccount()).rejects.toThrow();
+      expect(captureImmediate).not.toHaveBeenCalled();
+    });
+
+    it("a PostHog failure doesn't fail the account", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      captureImmediate.mockRejectedValue(new Error("posthog down"));
+
+      await expect(ensureAccount()).resolves.toEqual({ userId: "user_new", created: true });
+      expect(table.size).toBe(1);
+    });
   });
 });
