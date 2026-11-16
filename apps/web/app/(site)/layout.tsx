@@ -2,6 +2,7 @@ import { APP_NAME } from "@askwell/shared";
 import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { PostHogAnalytics } from "@/components/analytics/posthog-analytics";
 import {
   AFTER_AUTH_PATH,
   AFTER_SIGN_OUT_PATH,
@@ -26,9 +27,9 @@ export const viewport: Viewport = {
 };
 
 /**
- * Root layout for the site: landing, sign-in/up and the dashboard. It loads Clerk.
+ * Root layout for the site: landing, sign-in/up and the dashboard. It loads Clerk and PostHog.
  * /embed has its own root layout (app/embed/layout.tsx) without Clerk, so the
- * widget panel on customers' sites never downloads clerk-js. Moving between the
+ * widget panel on customers' sites never downloads clerk-js or PostHog. Moving between the
  * two root layouts is a full page load, which never happens in practice.
  */
 export default function SiteLayout({ children }: { children: ReactNode }) {
@@ -46,6 +47,7 @@ export default function SiteLayout({ children }: { children: ReactNode }) {
           signUpFallbackRedirectUrl={AFTER_AUTH_PATH}
           afterSignOutUrl={AFTER_SIGN_OUT_PATH}
         >
+          <PostHogAnalytics />
           {children}
         </ClerkProvider>
       </body>
