@@ -3,6 +3,7 @@
 import { MAX_PROJECT_NAME_LENGTH } from "@askwell/shared";
 import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent } from "react";
+import { conversationsPath } from "@/components/conversations/copy";
 import { knowledgePath } from "@/components/knowledge/copy";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { renameProject } from "./api";
@@ -51,17 +52,21 @@ export function ProjectRow({ project }: { project: ProjectRowData }) {
               <span className="block sm:inline">{project.usage}</span>
             </p>
           </div>
-          <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex">
-            <ButtonLink href={installPath(project.id)} size="sm" className="flex-1 sm:flex-none">
-              Install
-            </ButtonLink>
-            <ButtonLink href={knowledgePath(project.id)} variant="secondary" size="sm" className="flex-1 sm:flex-none">
+          {/* 375 px: two rows, Knowledge + Conversations, then Install + Rename + Delete. */}
+          <div className="grid shrink-0 grid-cols-6 gap-2 sm:flex">
+            <ButtonLink href={knowledgePath(project.id)} variant="secondary" size="sm" className="col-span-3">
               Knowledge
             </ButtonLink>
-            <Button variant="secondary" size="sm" className="flex-1 sm:flex-none" onClick={() => setMode("rename")}>
+            <ButtonLink href={conversationsPath(project.id)} variant="secondary" size="sm" className="col-span-3">
+              Conversations
+            </ButtonLink>
+            <ButtonLink href={installPath(project.id)} size="sm" className="col-span-2 sm:order-first">
+              Install
+            </ButtonLink>
+            <Button variant="secondary" size="sm" className="col-span-2" onClick={() => setMode("rename")}>
               Rename
             </Button>
-            <Button variant="secondary" size="sm" className="flex-1 sm:flex-none" onClick={() => setMode("delete")}>
+            <Button variant="secondary" size="sm" className="col-span-2" onClick={() => setMode("delete")}>
               Delete
             </Button>
           </div>
