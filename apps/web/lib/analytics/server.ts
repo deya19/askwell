@@ -39,11 +39,8 @@ function getClient(): PostHog | null {
   return cached.client;
 }
 
-/**
- * Captures a product event (project.md §6.11) from the server. Never throws: analytics must
- * not break the action that triggered it. Does nothing when PostHog isn't configured.
- */
-export async function captureServerEvent({ event, distinctId, properties }: ServerEvent): Promise<void> {
+/** Sends one event right away on the shared client. Never throws; a no-op without a key. */
+async function capture(event: string, distinctId: string, properties?: Properties): Promise<void> {
   try {
     const client = getClient();
     if (!client) return;
@@ -51,6 +48,39 @@ export async function captureServerEvent({ event, distinctId, properties }: Serv
   } catch (error) {
     console.error(`[analytics] Couldn't capture "${event}"`, error);
   }
+}
+
+/**
+ * Captures a product event (project.md §6.11) from the server. Never throws: analytics must
+ * not break the action that triggered it. Does nothing when PostHog isn't configured.
+ */
+export async function captureServerEvent({ event, distinctId, properties }: ServerEvent): Promise<void> {
+  await capture(event, distinctId, properties);
+}
+
+/** PostHog AI observability events (§6.6 step 7). */
+export type AiEvent = "$ai_generation" | "$ai_embedding";
+
+/** Prompt and reply text. Never sent: visitor messages and bot replies stay out of PostHog (§9). */
+const AI_TEXT_PROPERTIES = ["$ai_input", "$ai_output_choices"] as const;
+
+/**
+ * Captures an AI observability event (`$ai_generation`, `$ai_embedding`) on the same client,
+ * with the same never-throws behavior as `captureServerEvent`. Any `$ai_input` or
+ * `$ai_output_choices` is dropped, so no prompt or reply text ever reaches PostHog.
+ */
+export async function captureAiEvent({
+  event,
+  distinctId,
+  properties,
+}: {
+  event: AiEvent;
+  distinctId: string;
+  properties: Properties;
+}): Promise<void> {
+  const safe = { ...properties };
+  for (const key of AI_TEXT_PROPERTIES) delete safe[key];
+  await capture(event, distinctId, safe);
 }
 
 /**
