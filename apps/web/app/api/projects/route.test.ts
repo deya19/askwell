@@ -1,6 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+
+// PostHog under the real capture helper: events go to `captureImmediate`.
+const { captureImmediate } = vi.hoisted(() => ({ captureImmediate: vi.fn() }));
+vi.mock("posthog-node", () => ({
+  PostHog: vi.fn(function () {
+    return { captureImmediate, on: vi.fn() };
+  }),
+}));
 
 // --- Session -----------------------------------------------------------------
 
@@ -63,6 +71,7 @@ const createServiceClient = vi.fn(() => ({ rpc }));
 vi.mock("../../../lib/supabase/service", () => ({ createServiceClient }));
 
 const { GET, POST } = await import("./route");
+const { resetAnalyticsClientForTests } = await import("../../../lib/analytics/server");
 
 function post(body: unknown): Request {
   return new Request("http://localhost/api/projects", {
@@ -79,6 +88,14 @@ beforeEach(() => {
   listResult = { data: [], error: null };
   accountResult = { data: { plan: "free" }, error: null };
   rpcResult = { data: row, error: null };
+  resetAnalyticsClientForTests();
+  vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_test");
+  vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://us.i.posthog.com");
+  captureImmediate.mockResolvedValue(undefined);
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe("GET /api/projects", () => {
@@ -240,5 +257,40 @@ describe("POST /api/projects", () => {
 
     expect(res.status).toBe(500);
     expect(rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/projects: project_created", () => {
+  it("is sent once on success with the owner's user ID and the project ID only", async () => {
+    const res = await POST(post({ name: "Docs site" }));
+
+    expect(res.status).toBe(201);
+    expect(captureImmediate).toHaveBeenCalledTimes(1);
+    expect(captureImmediate).toHaveBeenCalledWith({
+      event: "project_created",
+      distinctId: USER_ID,
+      properties: { project_id: row.id },
+    });
+    // No project name in the event.
+    expect(JSON.stringify(captureImmediate.mock.calls)).not.toContain(row.name);
+  });
+
+  it("isn't sent when the project isn't created", async () => {
+    rpcResult = { data: null, error: { code: "AWL01", message: "project_limit_reached" } };
+    await POST(post({ name: "Docs site" }));
+    rpcResult = { data: null, error: { message: "boom" } };
+    await POST(post({ name: "Docs site" }));
+    await POST(post({}));
+
+    expect(captureImmediate).not.toHaveBeenCalled();
+  });
+
+  it("a PostHog failure doesn't fail the route", async () => {
+    captureImmediate.mockRejectedValue(new Error("posthog down"));
+
+    const res = await POST(post({ name: "Docs site" }));
+
+    expect(res.status).toBe(201);
+    await expect(res.json()).resolves.toEqual({ project: project });
   });
 });

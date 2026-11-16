@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { CopyButton } from "@/components/landing/copy-button";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { INSTALL_STEPS } from "./snippet";
+import { SnippetCopyButton } from "./snippet-copy-button";
 
 /** The snippet in a code panel with a copy button, then the three steps. */
 export function InstallView({ snippet }: { snippet: string }) {
@@ -10,7 +10,7 @@ export function InstallView({ snippet }: { snippet: string }) {
       <GlassPanel strong className="mt-8 overflow-hidden">
         <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
           <span className="text-xs text-muted">Paste before &lt;/body&gt;</span>
-          <CopyButton text={snippet} />
+          <SnippetCopyButton snippet={snippet} />
         </div>
         <pre className="overflow-x-auto p-4 text-sm leading-relaxed sm:p-5">
           <code className="font-mono break-all whitespace-pre-wrap">{snippet}</code>

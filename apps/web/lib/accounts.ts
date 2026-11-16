@@ -1,9 +1,14 @@
 import "server-only";
 import { auth } from "@clerk/nextjs/server";
 import type { Plan } from "@askwell/shared";
+import { captureServerEvent } from "./analytics/server";
 import { createServiceClient } from "./supabase/service";
 
-/** Every new account starts on Free. Upgrades come from the Clerk webhook, never the client. */
+/**
+ * Every new account starts on Free. Upgrades come from the Clerk webhook, never the client.
+ * TODO(Phase 5): the Clerk webhook that sets `plan = 'pro'` sends `upgraded` (project.md §6.11),
+ * with `distinctId` = the Clerk user ID, once per free → pro change.
+ */
 const NEW_ACCOUNT_PLAN: Plan = "free";
 
 export type EnsureAccountResult = { userId: string; created: boolean };
@@ -18,6 +23,9 @@ export type EnsureAccountResult = { userId: string; created: boolean };
  * idempotent and safe when several requests race. An existing row (and its plan)
  * is never touched. Owners can't insert accounts (RLS), so this uses the service
  * client, scoped to the session's own user ID.
+ *
+ * Sends `signed_up` (project.md §6.11) only when this call inserted the row, so once
+ * per user. Analytics never throws, so it can't fail the account.
  */
 export async function ensureAccount(): Promise<EnsureAccountResult> {
   const { userId } = await auth();
@@ -34,5 +42,8 @@ export async function ensureAccount(): Promise<EnsureAccountResult> {
     .select("clerk_user_id");
 
   if (error) throw new Error(`Could not create account: ${error.message}`);
-  return { userId, created: data.length > 0 };
+
+  const created = data.length > 0;
+  if (created) await captureServerEvent({ event: "signed_up", distinctId: userId });
+  return { userId, created };
 }

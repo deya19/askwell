@@ -4,6 +4,7 @@ import {
   type ListProjectsResponse,
   type ProjectResponse,
 } from "@askwell/shared";
+import { captureServerEvent } from "../../../lib/analytics/server";
 import { requireOwner } from "../../../lib/auth/require-owner";
 import { DB_ERROR_CODES } from "../../../lib/projects/db-errors";
 import { errorResponse, internalErrorResponse, invalidBodyMessage, readJson } from "../../../lib/projects/http";
@@ -37,6 +38,7 @@ export async function GET(): Promise<Response> {
  *
  * The plan comes from the caller's `accounts` row, never the request. `create_project`
  * counts and inserts under a lock, so two requests can't both take the last slot.
+ * Sends `project_created` (project.md §6.11) on success; analytics never fails the route.
  */
 export async function POST(request: Request): Promise<Response> {
   const owner = await requireOwner();
@@ -72,7 +74,14 @@ export async function POST(request: Request): Promise<Response> {
     if (error?.code === DB_ERROR_CODES.notFound) return accountMissing();
     if (error) throw new Error(`Could not create project: ${error.message}`);
 
-    const body: ProjectResponse = { project: toProject(data) };
+    const project = toProject(data);
+    await captureServerEvent({
+      event: "project_created",
+      distinctId: owner.userId,
+      properties: { project_id: project.id },
+    });
+
+    const body: ProjectResponse = { project };
     return Response.json(body, { status: 201 });
   } catch (cause) {
     return internalErrorResponse(cause);

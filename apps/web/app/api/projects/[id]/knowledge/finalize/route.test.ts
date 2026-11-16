@@ -1,9 +1,17 @@
 import { MAX_KNOWLEDGE_FILE_BYTES, knowledgeSourceResponseSchema } from "@askwell/shared";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { eqValue, type Query } from "../../../../../../lib/knowledge/fake-supabase";
 import * as setup from "../../../../../../lib/knowledge/route-test-setup";
 
 vi.mock("server-only", () => ({}));
+
+// PostHog under the real capture helper: events go to `captureImmediate`.
+const { captureImmediate } = vi.hoisted(() => ({ captureImmediate: vi.fn() }));
+vi.mock("posthog-node", () => ({
+  PostHog: vi.fn(function () {
+    return { captureImmediate, on: vi.fn() };
+  }),
+}));
 vi.mock("next/server", async () => (await import("../../../../../../lib/knowledge/route-test-setup")).mocks.nextServer());
 vi.mock("../../../../../../lib/auth/require-owner", async () =>
   (await import("../../../../../../lib/knowledge/route-test-setup")).mocks.requireOwner(),
@@ -22,6 +30,20 @@ vi.mock("../../../../../../lib/knowledge/process", async () =>
 );
 
 const { POST, maxDuration } = await import("./route");
+const { resetAnalyticsClientForTests } = await import("../../../../../../lib/analytics/server");
+
+/** PostHog configured, events accepted. Call after `setup.resetState()`. */
+function resetAnalytics(): void {
+  resetAnalyticsClientForTests();
+  vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_test");
+  vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://us.i.posthog.com");
+  captureImmediate.mockResolvedValue(undefined);
+}
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 const { PROJECT_ID, OTHER_PROJECT_ID, SOURCE_ID, service, state } = setup;
 
 const URL = `http://localhost/api/projects/${PROJECT_ID}/knowledge/finalize`;
@@ -39,6 +61,7 @@ function claimRow() {
 
 beforeEach(() => {
   setup.resetState();
+  resetAnalytics();
   dbStatus = "uploading";
   dbType = "pdf";
   state.service = (q: Query) => {
@@ -167,5 +190,46 @@ describe("POST /api/projects/:id/knowledge/finalize", () => {
 
   it("allows enough time to process a 10 MB PDF after responding", () => {
     expect(maxDuration).toBeGreaterThanOrEqual(300);
+  });
+});
+
+describe("POST /api/projects/:id/knowledge/finalize: knowledge_added", () => {
+  it.each(["pdf", "md", "txt"])("is sent once for an accepted %s file, with its type: no title", async (type) => {
+    dbType = type;
+    if (type !== "pdf") {
+      service.storage.download.mockResolvedValue({ data: new Blob(["# Notes"]), error: null });
+    }
+
+    const res = await finalize();
+
+    expect(res.status).toBe(200);
+    expect(captureImmediate).toHaveBeenCalledTimes(1);
+    expect(captureImmediate).toHaveBeenCalledWith({
+      event: "knowledge_added",
+      distinctId: setup.USER_ID,
+      properties: { project_id: PROJECT_ID, type },
+    });
+    const title = String(setup.sourceRow().title);
+    expect(JSON.stringify(captureImmediate.mock.calls)).not.toContain(title);
+  });
+
+  it("isn't sent for a refused file or a second finalize", async () => {
+    service.storage.download.mockResolvedValue({ data: new Blob(["not a pdf"]), error: null });
+    expect((await finalize()).status).toBe(422);
+
+    dbStatus = "processing";
+    expect((await finalize()).status).toBe(409);
+
+    expect(captureImmediate).not.toHaveBeenCalled();
+  });
+
+  it("a PostHog failure doesn't fail the route or the processing", async () => {
+    captureImmediate.mockRejectedValue(new Error("posthog down"));
+
+    const res = await finalize();
+
+    expect(res.status).toBe(200);
+    await setup.runAfter();
+    expect(setup.processKnowledgeSource).toHaveBeenCalledTimes(1);
   });
 });

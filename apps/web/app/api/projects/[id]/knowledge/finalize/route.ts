@@ -5,6 +5,7 @@ import {
   type KnowledgeSourceResponse,
 } from "@askwell/shared";
 import { after } from "next/server";
+import { captureServerEvent } from "../../../../../../lib/analytics/server";
 import { processKnowledgeSource } from "../../../../../../lib/knowledge/process";
 import { requireOwnedProject, sourceNotFound, type IdContext } from "../../../../../../lib/knowledge/routes";
 import { KNOWLEDGE_BUCKET, looksLikePdf, toKnowledgeSource } from "../../../../../../lib/knowledge/source";
@@ -20,6 +21,7 @@ export const maxDuration = 300;
  *
  * A refused file (missing, over 10 MB, or a `.pdf` that isn't a PDF) is deleted and its
  * source marked `failed`: 422 `file_rejected`. A second finalize gets 409 `conflict`.
+ * An accepted file sends `knowledge_added` (project.md §6.11) with its type: no title or content.
  */
 export async function POST(request: Request, context: IdContext): Promise<Response> {
   try {
@@ -63,6 +65,12 @@ export async function POST(request: Request, context: IdContext): Promise<Respon
     if (type === "pdf" && !looksLikePdf(bytes)) {
       return await reject(service, source.id, key, "This file isn't a valid PDF.");
     }
+
+    await captureServerEvent({
+      event: "knowledge_added",
+      distinctId: owned.userId,
+      properties: { project_id: projectId, type },
+    });
 
     after(() =>
       processKnowledgeSource(service, { id: source.id, projectId, type }, { kind: "file", bytes }),
