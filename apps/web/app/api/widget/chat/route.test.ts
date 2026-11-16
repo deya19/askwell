@@ -1,11 +1,29 @@
 import { PLAN_LIMITS } from "@askwell/shared";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProtectResult } from "../../../../lib/arcjet/decision";
 
 vi.mock("server-only", () => ({}));
 
+// `after()` callbacks run when the test says so; PostHog events go to `captureImmediate`.
+const { afterCallbacks, captureImmediate } = vi.hoisted(() => ({
+  afterCallbacks: [] as (() => unknown)[],
+  captureImmediate: vi.fn(),
+}));
+vi.mock("next/server", () => ({ after: vi.fn((cb: () => unknown) => void afterCallbacks.push(cb)) }));
+vi.mock("posthog-node", () => ({
+  PostHog: vi.fn(function () {
+    return { captureImmediate, on: vi.fn() };
+  }),
+}));
+const runAfter = async () => {
+  for (const cb of afterCallbacks.splice(0)) await cb();
+};
+const captured = (event: string) =>
+  captureImmediate.mock.calls.map(([e]) => e as { event: string }).filter((e) => e.event === event);
+
 const KEY = "pk_0123456789abcdef0123456789abcdef";
 const PROJECT_ID = "6f1c2b9e-3d4a-4c5b-8e7f-0a1b2c3d4e5f";
+const OWNER_ID = "user_owner";
 const CONVERSATION_ID = "0b6c7d8e-1f2a-4b3c-9d4e-5f6a7b8c9d0e";
 const NEW_CONVERSATION_ID = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
 
@@ -26,6 +44,8 @@ const from = vi.fn((table: string) => {
       eq(table, column, value);
       return query;
     }),
+    order: vi.fn(() => query),
+    limit: vi.fn(() => query),
     maybeSingle: vi.fn(async () => tables[table] ?? { data: null, error: null }),
   };
   return query;
@@ -40,6 +60,7 @@ vi.mock("../../../../lib/ai/openai", () => ({
 }));
 
 const { POST, OPTIONS } = await import("./route");
+const { resetAnalyticsClientForTests } = await import("../../../../lib/analytics/server");
 
 const post = (body: unknown) =>
   POST(
@@ -68,7 +89,7 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
   protectChat.mockResolvedValue({ allowed: true });
   tables = {
-    projects: { data: { id: PROJECT_ID, accounts: { plan: "free" } }, error: null },
+    projects: { data: { id: PROJECT_ID, owner_id: OWNER_ID, accounts: { plan: "free" } }, error: null },
     conversations: { data: { id: CONVERSATION_ID }, error: null },
   };
   rpcs = {
@@ -77,7 +98,21 @@ beforeEach(() => {
     save_chat_turn: { data: NEW_CONVERSATION_ID, error: null },
   };
   embeddingsCreate.mockResolvedValue({ data: [{ index: 0, embedding: new Array(1536).fill(0.01) }] });
-  responsesCreate.mockResolvedValue({ output_text: " We're open 9 to 5, Monday to Friday. ", status: "completed" });
+  responsesCreate.mockResolvedValue({
+    output_text: " We're open 9 to 5, Monday to Friday. ",
+    status: "completed",
+    model: "gpt-6-luna-2026-10-01",
+    usage: { input_tokens: 812, output_tokens: 14 },
+  });
+  afterCallbacks.length = 0;
+  captureImmediate.mockReset().mockResolvedValue(undefined);
+  resetAnalyticsClientForTests();
+  vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_test");
+  vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://us.i.posthog.com");
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe("POST /api/widget/chat", () => {
@@ -100,7 +135,7 @@ describe("POST /api/widget/chat", () => {
   });
 
   it("counts against the owner's plan limit", async () => {
-    tables.projects = { data: { id: PROJECT_ID, accounts: { plan: "pro" } }, error: null };
+    tables.projects = { data: { id: PROJECT_ID, owner_id: OWNER_ID, accounts: { plan: "pro" } }, error: null };
 
     await post(validBody);
 
@@ -186,7 +221,11 @@ describe("POST /api/widget/chat", () => {
   it("passes the key and message to Arcjet", async () => {
     await post(validBody);
 
-    expect(protectChat).toHaveBeenCalledWith(expect.any(Request), { key: KEY, message: "When are you open?" });
+    expect(protectChat).toHaveBeenCalledWith(expect.any(Request), {
+      key: KEY,
+      message: "When are you open?",
+      project: { id: PROJECT_ID, ownerId: OWNER_ID, plan: "free" },
+    });
   });
 
   it.each([
@@ -283,5 +322,112 @@ describe("OPTIONS /api/widget/chat", () => {
     expect(res.status).toBe(204);
     expectCors(res);
     expect(res.headers.get("access-control-allow-methods")).toContain("POST");
+  });
+});
+
+describe("POST /api/widget/chat: analytics", () => {
+  const TEXT = ["When are you open?", "open 9 to 5", "We are open 9 to 5"];
+  const expectNoText = () => {
+    const sent = JSON.stringify(captureImmediate.mock.calls);
+    for (const text of TEXT) expect(sent).not.toContain(text);
+  };
+
+  it("sends the reply's AI trace after the response, grouped under the conversation, with no text", async () => {
+    const res = await post(validBody);
+    expect(res.status).toBe(200);
+    expect(captureImmediate).not.toHaveBeenCalled(); // Nothing before the response.
+
+    await runAfter();
+
+    const [generation] = captured("$ai_generation");
+    expect(captured("$ai_generation")).toHaveLength(1);
+    expect(generation).toEqual({
+      event: "$ai_generation",
+      distinctId: "visitor_12345678",
+      properties: expect.objectContaining({
+        $ai_trace_id: NEW_CONVERSATION_ID,
+        $ai_session_id: NEW_CONVERSATION_ID,
+        $ai_provider: "openai",
+        $ai_model: "gpt-6-luna-2026-10-01",
+        $ai_input_tokens: 812,
+        $ai_output_tokens: 14,
+        $ai_latency: expect.any(Number),
+        project_id: PROJECT_ID,
+        $process_person_profile: false,
+      }),
+    });
+    const properties = (generation as unknown as { properties: Record<string, unknown> }).properties;
+    expect(properties).not.toHaveProperty("$ai_input");
+    expect(properties).not.toHaveProperty("$ai_output_choices");
+    expectNoText();
+  });
+
+  it("traces a continued conversation under the same conversation id", async () => {
+    rpcs.save_chat_turn = { data: CONVERSATION_ID, error: null };
+    await post({ ...validBody, conversationId: CONVERSATION_ID });
+    await runAfter();
+
+    expect(captured("$ai_generation")[0]).toMatchObject({ properties: { $ai_trace_id: CONVERSATION_ID } });
+  });
+
+  it("sends first_chat once, for the owner, when the new conversation is the project's first", async () => {
+    tables.conversations = { data: { id: NEW_CONVERSATION_ID }, error: null };
+
+    await post(validBody);
+    await runAfter();
+
+    expect(captured("first_chat")).toEqual([
+      {
+        event: "first_chat",
+        distinctId: OWNER_ID,
+        properties: { project_id: PROJECT_ID, conversation_id: NEW_CONVERSATION_ID },
+      },
+    ]);
+    expect(eq).toHaveBeenCalledWith("conversations", "project_id", PROJECT_ID);
+    expectNoText();
+  });
+
+  it("sends no first_chat for a later conversation or a continued one", async () => {
+    // The project's earliest conversation is an older one.
+    tables.conversations = { data: { id: CONVERSATION_ID }, error: null };
+    await post(validBody);
+    rpcs.save_chat_turn = { data: CONVERSATION_ID, error: null };
+    await post({ ...validBody, conversationId: CONVERSATION_ID });
+    await runAfter();
+
+    expect(captured("first_chat")).toHaveLength(0);
+    expect(captured("$ai_generation")).toHaveLength(2);
+  });
+
+  it("sends nothing when the model fails or the turn is refused", async () => {
+    responsesCreate.mockRejectedValue(new Error("model down"));
+    await post(validBody);
+    rpcs.consume_message = { data: false, error: null };
+    await post(validBody);
+    await runAfter();
+
+    expect(captureImmediate).not.toHaveBeenCalled();
+  });
+
+  it("a PostHog failure never fails the reply", async () => {
+    tables.conversations = { data: { id: NEW_CONVERSATION_ID }, error: null };
+    captureImmediate.mockRejectedValue(new Error("posthog down"));
+
+    const res = await post(validBody);
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({ conversationId: NEW_CONVERSATION_ID });
+    await expect(runAfter()).resolves.toBeUndefined();
+  });
+
+  it("a failing first-chat lookup never fails the reply", async () => {
+    tables.conversations = { data: null, error: { message: "boom" } };
+
+    const res = await post(validBody);
+
+    expect(res.status).toBe(200);
+    await expect(runAfter()).resolves.toBeUndefined();
+    expect(captured("first_chat")).toHaveLength(0);
+    expect(captured("$ai_generation")).toHaveLength(1);
   });
 });

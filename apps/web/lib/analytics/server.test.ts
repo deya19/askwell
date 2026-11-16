@@ -13,7 +13,7 @@ const { PostHog, captureImmediate, captureExceptionImmediate, on } = vi.hoisted(
 });
 vi.mock("posthog-node", () => ({ PostHog }));
 
-import { captureServerEvent, captureServerException, getPostHogKey, resetAnalyticsClientForTests } from "./server";
+import { captureAiEvent, captureServerEvent, captureServerException, getPostHogKey, resetAnalyticsClientForTests } from "./server";
 
 function configure() {
   vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_test");
@@ -120,5 +120,53 @@ describe("captureServerException", () => {
 
     await expect(captureServerException(new Error("boom"))).resolves.toBeUndefined();
     expect(log).toHaveBeenCalledWith("[analytics] Couldn't capture an exception", expect.any(Error));
+  });
+});
+
+describe("captureAiEvent", () => {
+  const properties = { $ai_trace_id: "conv_1", $ai_model: "gpt-6-luna", $ai_input_tokens: 10, $ai_output_tokens: 2 };
+
+  test("sends the event on the same client as product events", async () => {
+    configure();
+
+    await captureServerEvent({ event: "first_chat", distinctId: "user_1" });
+    await captureAiEvent({ event: "$ai_generation", distinctId: "visitor_1", properties });
+
+    expect(PostHog).toHaveBeenCalledTimes(1);
+    expect(captureImmediate).toHaveBeenLastCalledWith({ event: "$ai_generation", distinctId: "visitor_1", properties });
+  });
+
+  test("never sends $ai_input or $ai_output_choices", async () => {
+    configure();
+
+    await captureAiEvent({
+      event: "$ai_generation",
+      distinctId: "visitor_1",
+      properties: {
+        ...properties,
+        $ai_input: [{ role: "user", content: "secret question" }],
+        $ai_output_choices: [{ role: "assistant", content: "secret answer" }],
+      },
+    });
+
+    expect(captureImmediate).toHaveBeenCalledWith({ event: "$ai_generation", distinctId: "visitor_1", properties });
+    expect(JSON.stringify(captureImmediate.mock.calls)).not.toContain("secret");
+  });
+
+  test("no key: does nothing", async () => {
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "");
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://us.i.posthog.com");
+
+    await captureAiEvent({ event: "$ai_generation", distinctId: "visitor_1", properties });
+    expect(captureImmediate).not.toHaveBeenCalled();
+  });
+
+  test("never throws when PostHog fails", async () => {
+    configure();
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    captureImmediate.mockRejectedValue(new Error("down"));
+
+    await expect(captureAiEvent({ event: "$ai_generation", distinctId: "visitor_1", properties })).resolves.toBeUndefined();
+    expect(log).toHaveBeenCalledWith('[analytics] Couldn\'t capture "$ai_generation"', expect.any(Error));
   });
 });
