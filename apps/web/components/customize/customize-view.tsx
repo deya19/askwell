@@ -50,7 +50,11 @@ export function CustomizeView({
 
   const validation = validateDraft(draft);
   const errors = validation.ok ? {} : validation.errors;
-  const preview = previewConfig(draft, saved);
+  // The preview keeps each field's last valid value while the owner is mid-edit (e.g. a
+  // half-typed color), not the saved one. Updated during render, so it never lags a frame.
+  const [lastPreview, setLastPreview] = useState(initialConfig);
+  const preview = previewConfig(draft, lastPreview);
+  if (isDirty(preview, lastPreview)) setLastPreview(preview);
   const dirty = isDirty(draft, saved);
   const saving = status.kind === "saving";
 
@@ -99,7 +103,8 @@ export function CustomizeView({
         </section>
 
         <GlassPanel as="form" onSubmit={submit} noValidate className="p-4 sm:p-6" aria-label="Widget settings">
-          <fieldset disabled={locked} className="min-w-0 space-y-6 disabled:opacity-60">
+          {/* Locked on Free, and while a save is in flight so no edit is overwritten by its reply. */}
+          <fieldset disabled={locked || saving} className={cn("min-w-0 space-y-6", locked && "opacity-60")}>
             <Field label="Button color" htmlFor={ids.colorText} error={errors.buttonColor}>
               <div className="flex gap-2">
                 <input
