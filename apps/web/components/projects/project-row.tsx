@@ -4,6 +4,7 @@ import { MAX_PROJECT_NAME_LENGTH } from "@askwell/shared";
 import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent } from "react";
 import { conversationsPath } from "@/components/conversations/copy";
+import { customizePath } from "@/components/customize/copy";
 import { knowledgePath } from "@/components/knowledge/copy";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { renameProject } from "./api";
@@ -27,7 +28,7 @@ export function ProjectRow({ project }: { project: ProjectRowData }) {
   const [name, setName] = useState(project.name);
 
   return (
-    <li className="flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+    <li className="flex flex-col gap-4 px-4 py-4 sm:px-5 md:flex-row md:items-center md:justify-between">
       {mode === "rename" ? (
         <RenameForm
           project={{ id: project.id, name }}
@@ -52,21 +53,24 @@ export function ProjectRow({ project }: { project: ProjectRowData }) {
               <span className="block sm:inline">{project.usage}</span>
             </p>
           </div>
-          {/* 375 px: two rows, Knowledge + Conversations, then Install + Rename + Delete. */}
-          <div className="grid shrink-0 grid-cols-6 gap-2 sm:flex">
-            <ButtonLink href={knowledgePath(project.id)} variant="secondary" size="sm" className="col-span-3">
-              Knowledge
-            </ButtonLink>
-            <ButtonLink href={conversationsPath(project.id)} variant="secondary" size="sm" className="col-span-3">
-              Conversations
-            </ButtonLink>
-            <ButtonLink href={installPath(project.id)} size="sm" className="col-span-2 sm:order-first">
+          {/* 375 px: three rows of two; from 640 px, one row. Install + Knowledge, Conversations + Customize, Rename + Delete. */}
+          <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex">
+            <ButtonLink href={installPath(project.id)} size="sm">
               Install
             </ButtonLink>
-            <Button variant="secondary" size="sm" className="col-span-2" onClick={() => setMode("rename")}>
+            <ButtonLink href={knowledgePath(project.id)} variant="secondary" size="sm">
+              Knowledge
+            </ButtonLink>
+            <ButtonLink href={conversationsPath(project.id)} variant="secondary" size="sm">
+              Conversations
+            </ButtonLink>
+            <ButtonLink href={customizePath(project.id)} variant="secondary" size="sm">
+              Customize
+            </ButtonLink>
+            <Button variant="secondary" size="sm" onClick={() => setMode("rename")}>
               Rename
             </Button>
-            <Button variant="secondary" size="sm" className="col-span-2" onClick={() => setMode("delete")}>
+            <Button variant="secondary" size="sm" onClick={() => setMode("delete")}>
               Delete
             </Button>
           </div>
