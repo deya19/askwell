@@ -15,32 +15,13 @@ vi.mock("@clerk/nextjs/server", () => ({
   auth: vi.fn(async () => ({ userId })),
 }));
 
-type AccountRow = { clerk_user_id: string; plan: string };
-type UpsertOptions = { onConflict?: string; ignoreDuplicates?: boolean };
-
-/**
- * A fake `accounts` table that behaves like `insert … on conflict do nothing`:
- * a conflicting row is skipped, and only inserted rows come back from select().
- */
-const table = new Map<string, AccountRow>();
-let failWith: string | null = null;
-
-const upsert = vi.fn((row: AccountRow, options: UpsertOptions) => ({
-  select: vi.fn(async () => {
-    if (failWith) return { data: null, error: { message: failWith } };
-    if (table.has(row.clerk_user_id)) {
-      if (!options.ignoreDuplicates) table.set(row.clerk_user_id, row);
-      return { data: [], error: null };
-    }
-    table.set(row.clerk_user_id, row);
-    return { data: [{ clerk_user_id: row.clerk_user_id }], error: null };
-  }),
-}));
-const from = vi.fn(() => ({ upsert }));
-const createServiceClient = vi.fn(() => ({ from }));
+const { fakeAccountsTable } = await import("./billing/test-helpers");
+const accounts = fakeAccountsTable();
+const table = accounts.rows;
+const createServiceClient = vi.fn(() => accounts.client);
 vi.mock("./supabase/service", () => ({ createServiceClient }));
 
-const { ensureAccount } = await import("./accounts");
+const { ensureAccount, setAccountPlan } = await import("./accounts");
 const { resetAnalyticsClientForTests } = await import("./analytics/server");
 
 describe("ensureAccount", () => {
@@ -48,7 +29,8 @@ describe("ensureAccount", () => {
     vi.clearAllMocks();
     table.clear();
     userId = "user_new";
-    failWith = null;
+    accounts.state.failWith = null;
+    accounts.state.beforeInsert = null;
     resetAnalyticsClientForTests();
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_test");
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://us.i.posthog.com");
@@ -63,11 +45,6 @@ describe("ensureAccount", () => {
   it("inserts a free account for the signed-in user", async () => {
     await expect(ensureAccount()).resolves.toEqual({ userId: "user_new", created: true });
 
-    expect(from).toHaveBeenCalledWith("accounts");
-    expect(upsert).toHaveBeenCalledWith(
-      { clerk_user_id: "user_new", plan: "free" },
-      { onConflict: "clerk_user_id", ignoreDuplicates: true },
-    );
     expect([...table.values()]).toEqual([{ clerk_user_id: "user_new", plan: "free" }]);
   });
 
@@ -90,7 +67,7 @@ describe("ensureAccount", () => {
   });
 
   it("throws on a database error", async () => {
-    failWith = "boom";
+    accounts.state.failWith = "boom";
     await expect(ensureAccount()).rejects.toThrow("Could not create account: boom");
   });
 
@@ -110,7 +87,7 @@ describe("ensureAccount", () => {
     });
 
     it("isn't sent when the insert fails", async () => {
-      failWith = "boom";
+      accounts.state.failWith = "boom";
       await expect(ensureAccount()).rejects.toThrow();
       expect(captureImmediate).not.toHaveBeenCalled();
     });
@@ -121,6 +98,73 @@ describe("ensureAccount", () => {
 
       await expect(ensureAccount()).resolves.toEqual({ userId: "user_new", created: true });
       expect(table.size).toBe(1);
+    });
+  });
+
+  describe("setAccountPlan", () => {
+    const upgraded = () => captureImmediate.mock.calls.filter(([e]) => (e as { event: string }).event === "upgraded");
+
+    it("free → pro: sets pro and sends upgraded once, for the Clerk user ID", async () => {
+      table.set("user_payer", { clerk_user_id: "user_payer", plan: "free" });
+
+      await expect(setAccountPlan("user_payer", "pro")).resolves.toEqual({ changed: true });
+
+      expect(table.get("user_payer")?.plan).toBe("pro");
+      expect(upgraded()).toEqual([[{ event: "upgraded", distinctId: "user_payer" }]]);
+    });
+
+    it("is idempotent: a replay changes nothing and sends no second upgraded", async () => {
+      table.set("user_payer", { clerk_user_id: "user_payer", plan: "free" });
+
+      await setAccountPlan("user_payer", "pro");
+      await expect(setAccountPlan("user_payer", "pro")).resolves.toEqual({ changed: false });
+
+      expect(table.get("user_payer")?.plan).toBe("pro");
+      expect(upgraded()).toHaveLength(1);
+    });
+
+    it("creates a missing account on pro, which counts as an upgrade", async () => {
+      await expect(setAccountPlan("user_payer", "pro")).resolves.toEqual({ changed: true });
+
+      expect([...table.values()]).toEqual([{ clerk_user_id: "user_payer", plan: "pro" }]);
+      expect(upgraded()).toHaveLength(1);
+    });
+
+    it("pro → free: sets free, sends no upgraded", async () => {
+      table.set("user_payer", { clerk_user_id: "user_payer", plan: "pro" });
+
+      await expect(setAccountPlan("user_payer", "free")).resolves.toEqual({ changed: true });
+
+      expect(table.get("user_payer")?.plan).toBe("free");
+      expect(captureImmediate).not.toHaveBeenCalled();
+    });
+
+    it("creates a missing account on free without calling it a change", async () => {
+      await expect(setAccountPlan("user_payer", "free")).resolves.toEqual({ changed: false });
+      expect([...table.values()]).toEqual([{ clerk_user_id: "user_payer", plan: "free" }]);
+    });
+
+    it("still sets pro when ensureAccount creates the free row in between (race)", async () => {
+      accounts.state.beforeInsert = () => table.set("user_payer", { clerk_user_id: "user_payer", plan: "free" });
+
+      await expect(setAccountPlan("user_payer", "pro")).resolves.toEqual({ changed: true });
+
+      expect(table.get("user_payer")?.plan).toBe("pro");
+      expect(upgraded()).toHaveLength(1);
+    });
+
+    it("throws on a database error, without sending upgraded", async () => {
+      accounts.state.failWith = "boom";
+      await expect(setAccountPlan("user_payer", "pro")).rejects.toThrow("Could not update plan: boom");
+      expect(captureImmediate).not.toHaveBeenCalled();
+    });
+
+    it("a PostHog failure doesn't fail the plan change", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      captureImmediate.mockRejectedValue(new Error("posthog down"));
+
+      await expect(setAccountPlan("user_payer", "pro")).resolves.toEqual({ changed: true });
+      expect(table.get("user_payer")?.plan).toBe("pro");
     });
   });
 });
