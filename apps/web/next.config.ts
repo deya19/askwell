@@ -25,11 +25,26 @@ export const FRAME_HEADERS: HeaderRoute[] = [
   },
 ];
 
+/**
+ * Sent on every path, `/embed` included (project.md §9). Different keys from FRAME_HEADERS,
+ * so adding them can't conflict with the frame rules.
+ */
+export const COMMON_SECURITY_HEADERS: HeaderRoute = {
+  source: "/:path*",
+  headers: [
+    { key: "X-Content-Type-Options", value: "nosniff" },
+    { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  ],
+};
+
+/** Every header rule `next.config` serves. */
+export const SECURITY_HEADERS: HeaderRoute[] = [COMMON_SECURITY_HEADERS, ...FRAME_HEADERS];
+
 const nextConfig: NextConfig = {
   agentRules: false,
   transpilePackages: ["@askwell/shared"],
   async headers() {
-    return FRAME_HEADERS;
+    return SECURITY_HEADERS;
   },
 };
 
