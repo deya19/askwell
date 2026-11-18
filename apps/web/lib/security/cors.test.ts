@@ -28,7 +28,7 @@ vi.mock("@clerk/nextjs/server", async (importOriginal) => ({
 
 const FOREIGN_ORIGIN = "https://evil.example";
 const ID = "6f1c2b9e-3d4a-4c5b-8e7f-0a1b2c3d4e5f";
-const METHODS = ["GET", "POST", "PATCH", "DELETE"] as const;
+const METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"] as const;
 
 type Kind = "owner" | "widget" | "no-cors";
 type RouteModule = Partial<Record<(typeof METHODS)[number] | "OPTIONS", (req: Request, ctx: unknown) => Promise<Response> | Response>>;
@@ -60,10 +60,10 @@ function foreignRequest(path: string, method: string): NextRequest {
   if (method === "OPTIONS") {
     headers["Access-Control-Request-Method"] = "POST";
     headers["Access-Control-Request-Headers"] = "content-type";
-  } else if (method !== "GET") {
+  } else if (method !== "GET" && method !== "HEAD") {
     headers["Content-Type"] = "application/json";
   }
-  const body = method === "GET" || method === "OPTIONS" ? undefined : "{}";
+  const body = method === "GET" || method === "HEAD" || method === "OPTIONS" ? undefined : "{}";
   return new NextRequest(urlFor(path), { method, headers, body });
 }
 
@@ -79,7 +79,8 @@ describe("API route inventory", () => {
   test("every route under app/api is classified", () => {
     const apiDir = fileURLToPath(new URL("../../app/api", import.meta.url));
     const found = (readdirSync(apiDir, { recursive: true }) as string[])
-      .filter((file) => file.endsWith(`${sep}route.ts`) || file === "route.ts")
+      // Next accepts route.{js,jsx,ts,tsx}; any of them is a route.
+      .filter((file) => /(^|[\\/])route\.[jt]sx?$/.test(file))
       .map((file) => `/api/${relative(apiDir, join(apiDir, file)).split(sep).slice(0, -1).join("/")}`)
       .sort();
     expect(found).toEqual(ROUTES.map((r) => r.path).sort());

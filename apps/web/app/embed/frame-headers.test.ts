@@ -8,14 +8,19 @@ const routes = SECURITY_HEADERS.map((route) => {
   return { ...route, regex: new RegExp(built.regex) };
 });
 
-/** The headers Next sends for `path`. Throws if two matching rules set the same key. */
+/** Header names are case-insensitive (RFC 9110), so compare them lowercased. */
+const lower = (headers: Record<string, string>) =>
+  Object.fromEntries(Object.entries(headers).map(([key, value]) => [key.toLowerCase(), value]));
+
+/** The headers Next sends for `path`, names lowercased. Throws if two matching rules set the same name. */
 function headersFor(path: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const route of routes) {
     if (!route.regex.test(path)) continue;
     for (const { key, value } of route.headers) {
-      if (key in out) throw new Error(`${path}: two rules set ${key}`);
-      out[key] = value;
+      const name = key.toLowerCase();
+      if (name in out) throw new Error(`${path}: two rules set ${name}`);
+      out[name] = value;
     }
   }
   return out;
@@ -32,7 +37,7 @@ describe("security headers", () => {
   });
 
   test.each(["/embed", "/embed/"])("%s may be framed by any site", (path) => {
-    expect(headersFor(path)).toEqual({ ...COMMON, "Content-Security-Policy": "frame-ancestors *" });
+    expect(headersFor(path)).toEqual(lower({ ...COMMON, "Content-Security-Policy": "frame-ancestors *" }));
   });
 
   test.each([
@@ -48,10 +53,12 @@ describe("security headers", () => {
     "/x/embed",
     "/widget.js",
   ])("%s may only be framed by our own pages", (path) => {
-    expect(headersFor(path)).toEqual({
-      ...COMMON,
-      "Content-Security-Policy": "frame-ancestors 'self'",
-      "X-Frame-Options": "SAMEORIGIN",
-    });
+    expect(headersFor(path)).toEqual(
+      lower({
+        ...COMMON,
+        "Content-Security-Policy": "frame-ancestors 'self'",
+        "X-Frame-Options": "SAMEORIGIN",
+      }),
+    );
   });
 });
