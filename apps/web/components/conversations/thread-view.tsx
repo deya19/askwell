@@ -1,5 +1,6 @@
 import type { MessageRole } from "@askwell/shared";
 import Link from "next/link";
+import { ChatIcon, StatePanel } from "@/components/dashboard/states";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { cn } from "@/components/ui/cn";
 import { ROLE_LABELS } from "./copy";
@@ -21,9 +22,9 @@ export type ThreadMessage = {
 export function ThreadView({ messages }: { messages: ThreadMessage[] }) {
   if (messages.length === 0) {
     return (
-      <GlassPanel className="mt-8 px-6 py-14 text-center text-sm text-muted">
-        This conversation has no messages.
-      </GlassPanel>
+      <StatePanel icon={<ChatIcon />} title="No messages yet">
+        This conversation has no messages. Press Refresh to check again.
+      </StatePanel>
     );
   }
 
