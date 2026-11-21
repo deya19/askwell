@@ -5,7 +5,8 @@ import { Section } from "./section";
 
 type DemoMessage = { from: "visitor" | "bot"; text: string };
 
-// Static sample conversation. The real widget replaces this in Phase 6.
+// Static sample conversation. Shown as a picture of the panel; when the landing widget
+// key is set, the real widget also runs in the corner (see landing-widget.ts).
 const messages: DemoMessage[] = [
   { from: "visitor", text: "Can I add the chat to my Shopify store?" },
   {
@@ -16,13 +17,17 @@ const messages: DemoMessage[] = [
   { from: "bot", text: "Only from the product info you add: PDFs or pasted text." },
 ];
 
-export function LiveDemo() {
+export function LiveDemo({ live }: { live: boolean }) {
   return (
     <Section
       id="demo"
       eyebrow="Live demo"
       title="See what your visitors see"
-      intro="A preview of the chat panel. The live widget will be right here soon."
+      intro={
+        live
+          ? `Try it: the chat button in the corner is the real widget. Ask it anything about ${APP_NAME}.`
+          : "A preview of the chat panel your visitors open."
+      }
     >
       <Reveal className="relative mx-auto max-w-md">
         <div aria-hidden className="absolute inset-x-8 -inset-y-6 rounded-xl bg-white/[0.06] blur-3xl" />
@@ -86,15 +91,24 @@ export function LiveDemo() {
         </GlassPanel>
 
         <div className="mt-6 flex justify-end">
-          <span
-            aria-hidden
-            className="inline-flex animate-float items-center gap-2 rounded-pill bg-accent px-4 py-2.5 text-sm font-medium text-accent-fg shadow-lift"
-          >
-            <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2">
-              <path d="M5 18V8a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H9l-4 3" strokeLinejoin="round" />
-            </svg>
-            Ask a question
-          </span>
+          {live ? (
+            <p className="inline-flex items-center gap-2 text-sm text-muted">
+              Above is a sample. The real one is in the corner
+              <svg aria-hidden viewBox="0 0 24 24" className="size-4 animate-float" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M7 7l10 10M17 9v8H9" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </p>
+          ) : (
+            <span
+              aria-hidden
+              className="inline-flex animate-float items-center gap-2 rounded-pill bg-accent px-4 py-2.5 text-sm font-medium text-accent-fg shadow-lift"
+            >
+              <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2">
+                <path d="M5 18V8a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H9l-4 3" strokeLinejoin="round" />
+              </svg>
+              Ask a question
+            </span>
+          )}
         </div>
       </Reveal>
     </Section>
