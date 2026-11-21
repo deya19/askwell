@@ -4,6 +4,8 @@
  *
  * `LANDING_WIDGET_KEY` differs per environment and can be set after a deploy, so it is
  * read per request, never at build time (§11).
+ * Each Vercel environment sets its own key: the `pk_` key of a project in that
+ * environment's database.
  */
 
 import "server-only";
