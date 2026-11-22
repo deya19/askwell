@@ -1,6 +1,6 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
-import { routeAccess, SIGN_IN_PATH, SIGN_UP_PATH } from "@/lib/auth/routes";
-import { unauthorizedResponse } from "@/lib/auth/unauthorized";
+import { routeAccess, SIGN_IN_PATH, SIGN_UP_PATH } from "./lib/auth/routes";
+import { unauthorizedResponse } from "./lib/auth/unauthorized";
 
 /**
  * Clerk reads the session on every matched request. Signed-out requests to owner
