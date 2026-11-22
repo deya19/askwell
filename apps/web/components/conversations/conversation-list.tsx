@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { StatePanel } from "@/components/dashboard/states";
+import { ChatIcon, StatePanel } from "@/components/dashboard/states";
 import { installPath } from "@/components/projects/copy";
 import { buttonClasses } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
@@ -63,22 +63,5 @@ export function ConversationList({ projectId, rows }: { projectId: string; rows:
       </GlassPanel>
       {note && <p className="mt-3 text-center text-sm text-muted">{note}</p>}
     </>
-  );
-}
-
-function ChatIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="size-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v8.5A1.5 1.5 0 0 1 19 17H10l-4.5 3.5V17H5a1.5 1.5 0 0 1-1.5-1.5V7A1.5 1.5 0 0 1 5 5.5Z" />
-      <path d="M8 10h8M8 13h5" />
-    </svg>
   );
 }
