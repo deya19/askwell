@@ -64,6 +64,14 @@ describe("startWidget", () => {
     expect(document.head.querySelector("style")).toBeNull();
   });
 
+  test("renders config text as text, never as HTML (§9 XSS)", async () => {
+    const label = '<img src=x onerror="alert(1)">';
+    mounted = await startWidget(script({ src: `${APP}/widget.js`, "data-key": KEY }), env(okFetch({ config: { ...CONFIG, label } })));
+    const button = mounted!.root.querySelector("button")!;
+    expect(button.textContent).toBe(label);
+    expect(mounted!.root.querySelector("img")).toBeNull();
+  });
+
   test("no key: no fetch, nothing rendered, no warning", async () => {
     const e = env(okFetch());
     expect(await startWidget(script({ src: `${APP}/widget.js` }), e)).toBeNull();
