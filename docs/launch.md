@@ -77,6 +77,8 @@ select count(*) as tables from pg_tables where schemaname = 'public';
 
 Vercel → askwell project → **Settings** → **Environment Variables**.
 
+Today, `main` builds (Production) still use the **dev** Supabase project, and `NEXT_PUBLIC_APP_URL` and `LANDING_WIDGET_KEY` aren't set for Production (checked 2026-11-23). This step replaces those values.
+
 Change the **Production** values only. Preview and Development must keep pointing at the dev project (§11). If a variable is one row for all environments, edit it, untick Production, save, then add a new Production-only row for it.
 
 | Variable (§11) | Production value comes from | Same as dev? |
@@ -138,7 +140,7 @@ Use a fresh account for this, not the Askwell owner account. A Clerk test email 
 - [ ] **1.** Open the production URL. The Askwell chat widget is in the corner.
 - [ ] **2.** Ask it a product question (e.g. "What file types can I upload?"). It answers from its knowledge.
 - [ ] **3.** Sign up. Create a project. Upload a product PDF in **Knowledge**. It reaches **Ready**.
-- [ ] **4.** **Install** → copy the script tag. Paste it into a plain HTML file and open that from another origin (e.g. `npx serve` in that folder, then `http://localhost:3000`). The widget button appears.
+- [ ] **4.** **Install** → copy the script tag. Its `src` must start with the production URL (`NEXT_PUBLIC_APP_URL`), not a `…-<hash>-….vercel.app` deployment URL. If it doesn't, `NEXT_PUBLIC_APP_URL` is missing from Production. Paste it into a plain HTML file and open that from another origin (e.g. `npx serve` in that folder, then `http://localhost:3000`). The widget button appears.
 - [ ] **5.** Ask a question on that page whose answer is only in the PDF. The answer comes from the PDF.
 - [ ] **6.** Dashboard → **Conversations**. The chat from step 5 is there.
 - [ ] **7.** **Customize**. It shows the Pro paywall.
