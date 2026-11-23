@@ -80,7 +80,7 @@ describe("§9 Database API: tables and views", () => {
   });
 
   it("gives every public table at least one policy, and no policy to anon or PUBLIC", async () => {
-    const tables = relations.filter((r) => r.relkind === "r" && r.name.startsWith("public."));
+    const tables = relations.filter((r) => (r.relkind === "r" || r.relkind === "p") && r.name.startsWith("public."));
     for (const table of tables) {
       const policies = await db.query<{ roles: string[] }>(
         `select array(select case when r = 0 then 'public' else r::regrole::text end from unnest(polroles) r) as roles

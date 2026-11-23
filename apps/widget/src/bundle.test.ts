@@ -24,8 +24,28 @@ const SECRET_SHAPES = [
   /whsec_/, // Clerk (Svix) webhook signing secret
   /sk-[A-Za-z0-9_-]{20,}/, // OpenAI
   /ajkey_/, // Arcjet
-  /service_role/, // a legacy Supabase service-role JWT names its role
+  /service_role/, // the role name in plain text
 ];
+
+/** Roles of every JWT-shaped string in the source (a legacy Supabase key is a JWT; its payload is base64url). */
+function jwtRoles(source: string): string[] {
+  const roles: string[] = [];
+  for (const [, payload] of source.matchAll(/eyJ[A-Za-z0-9_-]+\.(eyJ[A-Za-z0-9_-]+)\.[A-Za-z0-9_-]*/g)) {
+    try {
+      const claims: unknown = JSON.parse(Buffer.from(payload!, "base64url").toString("utf8"));
+      if (claims && typeof claims === "object" && "role" in claims && typeof claims.role === "string") roles.push(claims.role);
+    } catch {
+      // not a JWT payload
+    }
+  }
+  return roles;
+}
+
+/** A synthetic, unsigned token: never a real credential. */
+function fakeJwt(claims: Record<string, unknown>): string {
+  const part = (value: object) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  return `${part({ alg: "HS256", typ: "JWT" })}.${part(claims)}.c2lnbmF0dXJl`;
+}
 
 let bundle: string;
 
@@ -56,6 +76,18 @@ describe("§9 Secrets: widget bundle", () => {
 
   it("holds nothing shaped like a secret key", () => {
     for (const shape of SECRET_SHAPES) expect(bundle, String(shape)).not.toMatch(shape);
+  });
+
+  it("holds no service-role JWT (anon JWTs are public and allowed)", () => {
+    expect(jwtRoles(bundle)).not.toContain("service_role");
+  });
+
+  it("decodes JWT roles that a plain-text check would miss", () => {
+    const service = fakeJwt({ iss: "supabase", role: "service_role" });
+    const anon = fakeJwt({ iss: "supabase", role: "anon" });
+    expect(service).not.toMatch(/service_role/);
+    expect(jwtRoles(`const k="${service}";`)).toEqual(["service_role"]);
+    expect(jwtRoles(`const k="${anon}";`)).toEqual(["anon"]);
   });
 
   it("holds none of the server secrets set in this environment", () => {

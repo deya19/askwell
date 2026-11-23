@@ -21,6 +21,31 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
+/** True if the source filters a query on `owner_id`: string-argument filters or a `.match({ owner_id })` object. */
+function filtersByOwner(source: string): boolean {
+  return (
+    /\.(eq|in|filter)\(\s*["'`]owner_id["'`]/.test(source) ||
+    /\.match\(\s*\{[^}]*?(^|[{,\s])["'`]?owner_id["'`]?\s*:/m.test(source)
+  );
+}
+
+describe("§9 Tenant leak: owner-filter scanner", () => {
+  it.each([
+    `.eq("owner_id", userId)`,
+    `.in('owner_id', ids)`,
+    ".filter(`owner_id`, 'eq', id)",
+    `.match({ owner_id: userId })`,
+    `.match({ id, "owner_id": userId })`,
+    `.match({\n  bot_id: id,\n  owner_id: userId,\n})`,
+  ])("flags %s", (source) => {
+    expect(filtersByOwner(source)).toBe(true);
+  });
+
+  it.each([`.eq("bot_id", id)`, `.match({ bot_id: id })`, `.match({ not_owner_id: id })`])("allows %s", (source) => {
+    expect(filtersByOwner(source)).toBe(false);
+  });
+});
+
 describe("§9 Tenant leak", () => {
   const serviceFiles = sourceFiles(webRoot)
     .filter((file) => readFileSync(file, "utf8").includes("createServiceClient("))
@@ -31,9 +56,7 @@ describe("§9 Tenant leak", () => {
   });
 
   it("never filters a service-client query by owner", () => {
-    const offenders = serviceFiles.filter((file) =>
-      /\.(eq|match|in|filter)\(\s*["'`]owner_id["'`]/.test(readFileSync(join(webRoot, file), "utf8")),
-    );
+    const offenders = serviceFiles.filter((file) => filtersByOwner(readFileSync(join(webRoot, file), "utf8")));
     expect(offenders).toEqual([]);
   });
 
